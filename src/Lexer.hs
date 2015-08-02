@@ -55,7 +55,7 @@ luaToken =
     <|> TkCarrot       <$ "^"
     <|> TkHash         <$ "#"
     <|> TkAmp          <$ "&"
-    <|> TkPile         <$ "|"
+    <|> TkPipe         <$ "|"
     <|> TkLt           <$ "<"
     <|> TkGt           <$ ">"
     <|> TkLShift       <$ "<<"
@@ -161,12 +161,11 @@ luaFloatLit :: RE Char String
 luaFloatLit = hexLit <|> decimalLit
   where
     hexLit :: RE Char String
-    hexLit = concat <$> sequenceA
-        [ pure <$> sym '0'
-        , pure <$> oneOf "xX"
-        , some hexDigit
-        , andOr (fractionalSuffix hexDigit) (exponent "pP")
-        ]
+    hexLit = (\a b cs ds -> a : b : cs ++ ds)
+        <$> sym '0'
+        <*> oneOf "xX"
+        <*> some hexDigit
+        <*> andOr (fractionalSuffix hexDigit) (exponent "pP")
 
     decimalLit :: RE Char String
     decimalLit = (++) <$> some digit <*> andOr (fractionalSuffix digit) (exponent "eE")

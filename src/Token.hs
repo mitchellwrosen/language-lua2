@@ -32,7 +32,7 @@ data Token
     | TkHash             -- #
     | TkAmp              -- &
     | TkTilde            -- ~
-    | TkPile             -- |
+    | TkPipe             -- |
     | TkLShift           -- <<
     | TkRShift           -- >>
     | TkDoubleFslash     -- //
