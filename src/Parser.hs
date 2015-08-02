@@ -1,16 +1,29 @@
-module Parser where
+module Parser
+    ( blockGrammar
+    , expressionGrammar
+    , statementGrammar
+    ) where
 
 import Syntax
 import Token
 
 import Control.Applicative
-import Data.Maybe          (fromMaybe)
+import Data.Maybe          (fromMaybe, isJust)
 import Prelude             hiding (break, repeat, until)
 import Text.Earley
 
 type P r a = Prod r String Token a
 
-grammar :: Grammar r String (Prod r String Token Statement)
+blockGrammar :: Grammar r String (P r Block)
+blockGrammar = (\(a,_,_) -> a) <$> grammar
+
+statementGrammar :: Grammar r String (P r Statement)
+statementGrammar = (\(_,b,_) -> b) <$> grammar
+
+expressionGrammar :: Grammar r String (P r Expression)
+expressionGrammar = (\(_,_,c) -> c) <$> grammar
+
+grammar :: Grammar r String (P r Block, P r Statement, P r Expression)
 grammar = mdo
     block :: P r Block <- rule $ Block
         <$> many statement
@@ -89,7 +102,7 @@ grammar = mdo
     expressionList1 :: P r [Expression] <- rule $
         expression `sepBy1` comma
 
-    -- TODO: Binary operator precedence rules
+    -- TODO: Binary operator precedence rules and associativities
     expression :: P r Expression <- rule $
             ENil <$ nil
         <|> ETrue <$ true
@@ -110,10 +123,17 @@ grammar = mdo
             <*> expression
 
     prefixExpression :: P r PrefixExpression <- rule $
-        undefined
+            PEVar <$> var
+        <|> PEFunctionCall
+            <$> prefixExpression
+            <*> optional (comma *> ident)
+            <*> functionArgs
+        <|> (PEExpr <$> parens expression)
 
     functionArgs :: P r FunctionArgs <- rule $
-        undefined
+            FAExprs <$> parens expressionList
+        <|> FATableConstructor <$> tableConstructor
+        <|> FAStringLit <$> stringLit
 
     functionBody :: P r ([Ident], Bool, Block) <- rule $ (\(a,b) c -> (a,b,c))
         <$> parens (fromMaybe ([],False) <$> optional parList)
@@ -133,7 +153,7 @@ grammar = mdo
             <*> (eq *> expression)
         <|> FExpr <$> expression
 
-    undefined
+    return (block, statement, expression)
 
 --------------------------------------------------------------------------------
 -- Non-recursive non-terminals
@@ -147,7 +167,7 @@ parList = withNames <|> withoutNames
     withNames :: P r ([Ident], Bool)
     withNames = (,)
         <$> nameList1
-        <*> (maybe False (const True) <$> optional (comma *> tripleDot))
+        <*> (isJust <$> optional (comma *> tripleDot))
 
     withoutNames :: P r ([Ident], Bool)
     withoutNames = ([],True) <$ tripleDot

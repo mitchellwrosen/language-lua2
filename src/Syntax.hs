@@ -151,7 +151,7 @@ data Expression
 
 data PrefixExpression
     = PEVar Variable
-    | PEFunctionCall PrefixExpression (Maybe Ident)
+    | PEFunctionCall PrefixExpression (Maybe Ident) FunctionArgs
     | PEExpr Expression
     deriving Show
 
