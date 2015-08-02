@@ -2,12 +2,8 @@ module Lexer (luaLexer) where
 
 import Token
 
-import           Control.Monad              (void)
 import           Data.Char                  (chr, isDigit, isHexDigit, isSpace)
-import           Data.HashSet               (HashSet)
-import qualified Data.HashSet               as HS
 import           Data.List                  (foldl')
-import           Data.Traversable           (sequenceA)
 import           Data.Maybe                 (fromMaybe)
 import           Data.Monoid
 import           Language.Lexer.Applicative
@@ -165,13 +161,13 @@ luaFloatLit = hexLit <|> decimalLit
         <$> sym '0'
         <*> oneOf "xX"
         <*> some hexDigit
-        <*> andOr (fractionalSuffix hexDigit) (exponent "pP")
+        <*> andOr (fractionalSuffix hexDigit) (exponentPart "pP")
 
     decimalLit :: RE Char String
-    decimalLit = (++) <$> some digit <*> andOr (fractionalSuffix digit) (exponent "eE")
+    decimalLit = (++) <$> some digit <*> andOr (fractionalSuffix digit) (exponentPart "eE")
 
-    exponent :: String -> RE Char String
-    exponent cs = f
+    exponentPart :: String -> RE Char String
+    exponentPart cs = f
         <$> oneOf cs
         <*> optional (oneOf "-+")
         <*> some digit -- Yes, digit, even for binaryExponent: 0x0p+A is invalid
@@ -227,9 +223,6 @@ hexDigit = psym isHexDigit
 digit :: RE Char Char
 digit = psym isDigit
 
-option :: RE Char [a] -> RE Char [a]
-option f = f <|> pure []
-
 --------------------------------------------------------------------------------
 -- Char extras
 
@@ -265,7 +258,3 @@ upToN 0 _ = pure []
 upToN 1 f = fmap pure f <|> pure []
 upToN n f = let g = upToN (n-1) f
             in liftA2 (:) f g <|> g
-
-aguard :: Alternative f => Bool -> f a -> f a
-aguard True x = x
-aguard _ _ = empty

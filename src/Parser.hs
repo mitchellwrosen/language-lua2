@@ -8,215 +8,308 @@ import Syntax
 import Token
 
 import Control.Applicative
+import Data.Loc
 import Data.Maybe          (fromMaybe, isJust)
+import Data.Monoid
 import Prelude             hiding (break, repeat, until)
 import Text.Earley
+import Text.Earley.Mixfix
+import Text.Printf         (printf)
 
-type P r a = Prod r String Token a
+type P r a = Prod r String (L Token) a
 
-blockGrammar :: Grammar r String (P r Block)
+blockGrammar :: Grammar r String (P r (L Block))
 blockGrammar = (\(a,_,_) -> a) <$> grammar
 
-statementGrammar :: Grammar r String (P r Statement)
+statementGrammar :: Grammar r String (P r (L Statement))
 statementGrammar = (\(_,b,_) -> b) <$> grammar
 
-expressionGrammar :: Grammar r String (P r Expression)
+expressionGrammar :: Grammar r String (P r (L Expression))
 expressionGrammar = (\(_,_,c) -> c) <$> grammar
 
-grammar :: Grammar r String (P r Block, P r Statement, P r Expression)
+grammar :: Grammar r String (P r (L Block), P r (L Statement), P r (L Expression))
 grammar = mdo
-    block :: P r Block <- rule $ Block
-        <$> many statement
-        <*> (blockReturnStatement <|> pure [])
+    block :: P r (L Block) <- rule $
+        (\a b -> L (locOf a <> locOf b) (Block a (maybe [] unLoc b)))
+            <$> many statement
+            <*> optional blockReturnStatement
 
-    statement :: P r Statement <- rule $
-            SSemi <$ semi
-        <|> SAssign
-            <$> varList1 <* eq
+    statement :: P r (L Statement) <- rule $
+            SSemi <$$ semi
+        <|> (\a b -> L (locOf a <> locOf b) (SAssign a b))
+            <$> varList1
+            <*  eq
             <*> expressionList1
-        <|> SFunctionCall
+        <|> (\a b c -> L (locOf a <> locOf b <> locOf c) (SFunctionCall a b c))
             <$> prefixExpression
             <*> optional (comma *> ident)
             <*> functionArgs
-        <|> SLabel <$> (doubleColon *> ident <* doubleColon)
-        <|> SBreak <$ break
-        <|> SGoto <$> (goto *> ident)
-        <|> SDo <$> (do' *> block <* end)
-        <|> SWhile
-            <$> (while *> expression <* do')
+        <|> (\a b c -> L (locOf a <> locOf c) (SLabel b))
+            <$> doubleColon
+            <*> ident
+            <*> doubleColon
+        <|> SBreak <$$ break
+        <|> (\a b -> L (locOf a <> locOf b) (SGoto b))
+            <$> goto
+            <*> ident
+        <|> (\a b c -> L (locOf a <> locOf c) (SDo b))
+            <$> do'
             <*> block
-            <*  end
-        <|> SRepeat
-            <$> (repeat *> block)
-            <*> (until *> expression)
-        <|> SIf
-            <$> (if' *> expression)
-            <*> (then' *> block)
+            <*> end
+        <|> (\a b c d -> L (locOf a <> locOf d) (SWhile b c))
+            <$> while
+            <*> expression
+            <*  do'
+            <*> block
+            <*> end
+        <|> (\a b c -> L (locOf a <> locOf c) (SRepeat b c))
+            <$> repeat
+            <*> block
+            <*  until
+            <*> expression
+        <|> (\a b c d e f -> L (locOf a <> locOf f) (SIf b c d e))
+            <$> if'
+            <*> expression
+            <*  then'
+            <*> block
             <*> many ((,)
                 <$> (elseif *> expression)
-                <*> (then' *> block))
+                <*  then'
+                <*> block)
             <*> optional (else' *> block)
-            <*  end
-        <|> SFor
-            <$> (for *> ident)
-            <*> (eq *> expression)
-            <*> (comma *> expression)
+            <*> end
+        <|> (\a b c d e f g -> L (locOf a <> locOf g) (SFor b c d e f))
+            <$> for
+            <*> ident
+            <*  eq
+            <*> expression
+            <*  comma
+            <*> expression
             <*> optional (comma *> expression)
-            <*> (do' *> block)
-            <*  end
-        <|> SForIn
-            <$> (for *> nameList1)
-            <*> (in' *> expressionList1)
-            <*> (do' *> block)
-            <*  end
-        <|> (\(a,b,c,(d,e,f)) -> SFunctionDef a b c d e f) <$> ((,,,)
-            <$> (function *> ident)
-            <*> (ident `sepBy` dot)
+            <*  do'
+            <*> block
+            <*> end
+        <|> (\a b c d e -> L (locOf a <> locOf e) (SForIn b c d))
+            <$> for
+            <*> nameList1
+            <*  in'
+            <*> expressionList1
+            <*  do'
+            <*> block
+            <*> end
+        <|> (\a b c d (e,f,g,h) -> L (locOf a <> locOf h) (SFunctionDef b c d e f g))
+            <$> function
+            <*> ident
+            <*> ident `sepBy` dot
             <*> optional (colon *> ident)
-            <*> functionBody)
-        <|> (\(a,(b,c,d)) -> SLocalFunction a b c d) <$> ((,)
-            <$> (local *> function *> ident)
-            <*> functionBody)
-        <|> SLocalAssign
-            <$> (local *> nameList1)
-            <*> ((eq *> expressionList1) <|> pure [])
+            <*> functionBody
+        <|> (\a b (c,d,e,f) -> L (locOf a <> locOf f) (SLocalFunction b c d e))
+            <$> local
+            <*  function
+            <*> ident
+            <*> functionBody
+        <|> (\a b c -> L (locOf a <> locOf b <> locOf c) (SLocalAssign b (fromMaybe [] c)))
+            <$> local
+            <*> nameList1
+            <*> optional (eq *> expressionList1)
 
-    blockReturnStatement :: P r [Expression] <- rule $
-        return' *> expressionList <* optional semi
+    blockReturnStatement :: P r (L [L Expression]) <- rule $
+        (\a b c -> L (locOf a <> locOf b <> locOf c) b)
+            <$> return'
+            <*> expressionList
+            <*> optional semi
 
-    varList1 :: P r [Variable] <- rule $
+    varList1 :: P r [L Variable] <- rule $
         var `sepBy1` comma
 
-    var :: P r Variable <- rule $
-            VIdent <$> ident
-        <|> VIndex
+    var :: P r (L Variable) <- rule $
+            (\a -> L (locOf a) (VIdent a))
+                <$> ident
+        <|> (\a b c -> L (locOf a <> locOf c) (VIndex a b))
             <$> prefixExpression
-            <*> brackets expression
-        <|> VIndex
+            <*  lbracket
+            <*> expression
+            <*> rbracket
+        <|> (\a b -> L (locOf a <> locOf b) (VIndex a (EStringLit . unIdent <$> b)))
             <$> prefixExpression
-            <*> (EStringLit . unIdent <$> (dot *> ident))
+            <*  dot
+            <*> ident
 
-    expressionList :: P r [Expression] <- rule $
+    expressionList :: P r [L Expression] <- rule $
         expression `sepBy` comma
 
-    expressionList1 :: P r [Expression] <- rule $
+    expressionList1 :: P r [L Expression] <- rule $
         expression `sepBy1` comma
 
-    -- TODO: Binary operator precedence rules and associativities
-    expression :: P r Expression <- rule $
-            ENil <$ nil
-        <|> ETrue <$ true
-        <|> EFalse <$ false
-        <|> EIntLit <$> intLit
-        <|> EFloatLit <$> floatLit
-        <|> EStringLit <$> stringLit
-        <|> ETripleDot <$ tripleDot
-        <|> (\(a,b,c) -> EFunctionDef a b c) <$> (function *> functionBody)
-        <|> EPrefixExp <$> prefixExpression
-        <|> ETableConstructor <$> tableConstructor
-        <|> EBinop
-            <$> expression
-            <*> binop
-            <*> expression
-        <|> EUnop
-            <$> unop
-            <*> expression
+    atomicExpression :: P r (L Expression) <- rule $
+            ENil              <$$  nil
+        <|> ETrue             <$$  true
+        <|> EFalse            <$$  false
+        <|> EIntLit           <$$> intLit
+        <|> EFloatLit         <$$> floatLit
+        <|> EStringLit        <$$> stringLit
+        <|> ETripleDot        <$$  tripleDot
+        <|> EPrefixExp        <$$> prefixExpression
+        <|> ETableConstructor <$$> tableConstructor
 
-    prefixExpression :: P r PrefixExpression <- rule $
-            PEVar <$> var
-        <|> PEFunctionCall
+    expression :: P r (L Expression) <- mixfixExpression expressionTable atomicExpression combineMixfix
+
+    prefixExpression :: P r (L PrefixExpression) <- rule $
+            PEVar <$$> var
+        <|> (\a b c -> L (locOf a <> locOf c) (PEFunctionCall a b c))
             <$> prefixExpression
             <*> optional (comma *> ident)
             <*> functionArgs
-        <|> (PEExpr <$> parens expression)
+        <|> (\a b c -> L (locOf a <> locOf c) (PEExpr b))
+            <$> lparen
+            <*> expression
+            <*> rparen
 
-    functionArgs :: P r FunctionArgs <- rule $
-            FAExprs <$> parens expressionList
-        <|> FATableConstructor <$> tableConstructor
-        <|> FAStringLit <$> stringLit
+    functionArgs :: P r (L FunctionArgs) <- rule $
+            (\a b c -> L (locOf a <> locOf c) (FAExprs b))
+            <$> lparen
+            <*> expressionList
+            <*> rparen
+        <|> FATableConstructor <$$> tableConstructor
+        <|> FAStringLit <$$> stringLit
 
-    functionBody :: P r ([Ident], Bool, Block) <- rule $ (\(a,b) c -> (a,b,c))
-        <$> parens (fromMaybe ([],False) <$> optional parList)
-        <*> block
-        <*  end
+    functionBody :: P r ([L Ident], Bool, L Block, L Token) <- rule $
+        pure (\(a,b) c d -> (a,b,c,d))
+            <*  lparen
+            <*> (fromMaybe ([], False) <$> optional parList)
+            <*  rparen
+            <*> block
+            <*> end
 
-    tableConstructor :: P r [Field] <- rule $
+    tableConstructor :: P r (L [L Field]) <- rule $
         let sep = comma <|> semi
-        in braces $ sepBy field sep <* optional sep
+        in (\a b c -> L (locOf a <> locOf c) b)
+            <$> lbrace
+            <*> sepBy field sep
+            <*  optional sep
+            <*> rbrace
 
-    field :: P r Field <- rule $
-            FExprAssign
-            <$> brackets expression
-            <*> (eq *> expression)
-        <|> FIdentAssign
+    field :: P r (L Field) <- rule $
+            (\a b c -> L (locOf a <> locOf c) (FExprAssign b c))
+            <$> lbracket
+            <*> expression
+            <*  rbracket
+            <*  eq
+            <*> expression
+        <|> (\a b -> L (locOf a <> locOf b) (FIdentAssign a b))
             <$> ident
-            <*> (eq *> expression)
-        <|> FExpr <$> expression
+            <*  eq
+            <*> expression
+        <|> FExpr <$$> expression
 
     return (block, statement, expression)
+  where
+    -- http://www.lua.org/manual/5.3/manual.html#3.4.8
+    expressionTable :: [[([Maybe (P r (L Token))], Associativity)]]
+    expressionTable =
+        [ [ (binop TkOr           "or",  LeftAssoc)  ]
+
+        , [ (binop TkAnd          "and", LeftAssoc)  ]
+
+        , [ (binop TkLt           "<",   LeftAssoc)
+          , (binop TkGt           ">",   LeftAssoc)
+          , (binop TkLeq          "<=",  LeftAssoc)
+          , (binop TkGeq          ">=",  LeftAssoc)
+          , (binop TkNeq          "~=",  LeftAssoc)
+          , (binop TkDoubleEq     "==",  LeftAssoc)  ]
+
+        , [ (binop TkPipe         "|",   LeftAssoc)  ]
+
+        , [ (binop TkTilde        "~",   LeftAssoc)  ]
+
+        , [ (binop TkAmp          "&",   LeftAssoc)  ]
+
+        , [ (binop TkLShift       "<<",  LeftAssoc)
+          , (binop TkRShift       ">>",  LeftAssoc)  ]
+
+        , [ (binop TkDoubleDot    "..",  RightAssoc) ]
+
+        , [ (binop TkPlus         "+",   LeftAssoc)
+          , (binop TkDash         "-",   LeftAssoc)  ]
+
+        , [ (binop TkStar         "*",   LeftAssoc)
+          , (binop TkFslash       "/",   LeftAssoc)
+          , (binop TkDoubleFslash "//",  LeftAssoc)
+          , (binop TkPct          "%",   LeftAssoc)  ]
+
+        , [ unop   TkNot          "not"
+          , unop   TkHash         "#"
+          , unop   TkDash         "-"
+          , unop   TkTilde        "~"                ]
+
+        , [ (binop TkCarrot       "^",   RightAssoc) ]
+        ]
+
+    combineMixfix :: [Maybe (L Token)] -> [L Expression] -> L Expression
+    combineMixfix (viewBinop -> Just (L loc tk)) [e1, e2] = L (locOf e1 <> locOf e2) (EBinop e1 (L loc (tk2binop tk)) e2)
+    combineMixfix (viewUnop -> Just (L loc tk)) [e] = L (loc <> locOf e) (EUnop (L loc (tk2unop tk)) e)
+    combineMixfix xs ys = error $ printf "Earley messed up?\nHoles: %s\nExprs: %s\n" (show xs) (show ys)
+
+    viewBinop :: [Maybe (L Token)] -> Maybe (L Token)
+    viewBinop [Nothing, x@(Just _), Nothing] = x
+    viewBinop _ = Nothing
+
+    viewUnop :: [Maybe (L Token)] -> Maybe (L Token)
+    viewUnop [x@(Just _), Nothing] = x
+    viewUnop _ = Nothing
+
+    tk2binop :: Token -> Binop
+    tk2binop TkPlus         = BPlus
+    tk2binop TkDash         = BDash
+    tk2binop TkStar         = BStar
+    tk2binop TkFslash       = BFslash
+    tk2binop TkDoubleFslash = BDoubleFslash
+    tk2binop TkCarrot       = BCarrot
+    tk2binop TkPct          = BPct
+    tk2binop TkAmp          = BAmp
+    tk2binop TkTilde        = BTilde
+    tk2binop TkPipe         = BPipe
+    tk2binop TkRShift       = BRShift
+    tk2binop TkLShift       = BLShift
+    tk2binop TkDoubleDot    = BDoubleDot
+    tk2binop TkLt           = BLt
+    tk2binop TkLeq          = BLeq
+    tk2binop TkGt           = BGt
+    tk2binop TkGeq          = BGeq
+    tk2binop TkDoubleEq     = BDoubleEq
+    tk2binop TkNeq          = BNeq
+    tk2binop TkAnd          = BAnd
+    tk2binop TkOr           = BOr
+    tk2binop tk             = error $ "Token " ++ show tk ++ " does not correspond to a binary op"
+
+    tk2unop :: Token -> Unop
+    tk2unop = undefined
 
 --------------------------------------------------------------------------------
 -- Non-recursive non-terminals
 
-nameList1 :: P r [Ident]
+nameList1 :: P r [L Ident]
 nameList1 = ident `sepBy` comma
 
-parList :: P r ([Ident], Bool)
+parList :: P r ([L Ident], Bool)
 parList = withNames <|> withoutNames
   where
-    withNames :: P r ([Ident], Bool)
+    withNames :: P r ([L Ident], Bool)
     withNames = (,)
         <$> nameList1
         <*> (isJust <$> optional (comma *> tripleDot))
 
-    withoutNames :: P r ([Ident], Bool)
+    withoutNames :: P r ([L Ident], Bool)
     withoutNames = ([],True) <$ tripleDot
 
-binop :: P r Binop
-binop =
-        (BPlus         <$ symbol TkPlus         <?> "+")
-    <|> (BDash         <$ symbol TkDash         <?> "-")
-    <|> (BStar         <$ symbol TkStar         <?> "*")
-    <|> (BFslash       <$ symbol TkFslash       <?> "/")
-    <|> (BDoubleFslash <$ symbol TkDoubleFslash <?> "//")
-    <|> (BCarrot       <$ symbol TkCarrot       <?> "^")
-    <|> (BPct          <$ symbol TkPct          <?> "%")
-    <|> (BAmp          <$ symbol TkAmp          <?> "&")
-    <|> (BTilde        <$ symbol TkTilde        <?> "~")
-    <|> (BPipe         <$ symbol TkPipe         <?> "|")
-    <|> (BRShift       <$ symbol TkRShift       <?> ">>")
-    <|> (BLShift       <$ symbol TkLShift       <?> "<<")
-    <|> (BDoubleDot    <$ symbol TkDoubleDot    <?> "..")
-    <|> (BLt           <$ symbol TkLt           <?> "<")
-    <|> (BLeq          <$ symbol TkLeq          <?> "<=")
-    <|> (BGt           <$ symbol TkGt           <?> ">")
-    <|> (BGeq          <$ symbol TkGeq          <?> ">=")
-    <|> (BDoubleEq     <$ symbol TkDoubleEq     <?> "==")
-    <|> (BNeq          <$ symbol TkNeq          <?> "~=")
-    <|> (BAnd          <$ symbol TkAnd          <?> "and")
-    <|> (BOr           <$ symbol TkOr           <?> "or")
+binop :: Token -> String -> [Maybe (P r (L Token))]
+binop tk s = [Nothing, Just (locSymbol tk <?> s), Nothing]
 
-unop :: P r Unop
-unop =
-        (UDash  <$ symbol TkDash  <?> "-")
-    <|> (UNot   <$ symbol TkNot   <?> "not")
-    <|> (UHash  <$ symbol TkHash  <?> "#")
-    <|> (UTilde <$ symbol TkTilde <?> "~")
+unop :: Token -> String -> ([Maybe (P r (L Token))], Associativity)
+unop tk s = ([Just (locSymbol tk <?> s), Nothing], NonAssoc)
 
 --------------------------------------------------------------------------------
 -- Combinators
-
-between :: Applicative f => f left -> f right -> f a -> f a
-between left right f = left *> f <* right
-
-braces :: P r a -> P r a
-braces = between lbrace rbrace
-
-brackets :: P r a -> P r a
-brackets = between lbracket rbracket
-
-parens :: P r a -> P r a
-parens = between lparen rparen
 
 sepBy :: Alternative f => f a -> f sep -> f [a]
 sepBy f sep = sepBy1 f sep <|> pure []
@@ -227,126 +320,152 @@ sepBy1 f sep = (:) <$> f <*> many (sep *> f)
 --------------------------------------------------------------------------------
 -- Token productions
 
-break :: P r Token
-break = symbol TkBreak <?> "break"
+break :: P r (L Token)
+break = locSymbol TkBreak <?> "break"
 
-colon :: P r Token
-colon = symbol TkColon <?> ":"
+colon :: P r (L Token)
+colon = locSymbol TkColon <?> ":"
 
-comma :: P r Token
-comma = symbol TkComma <?> ","
+comma :: P r (L Token)
+comma = locSymbol TkComma <?> ","
 
-do' :: P r Token
-do' = symbol TkDo <?> "do"
+do' :: P r (L Token)
+do' = locSymbol TkDo <?> "do"
 
-dot :: P r Token
-dot = symbol TkDot <?> "dot"
+dot :: P r (L Token)
+dot = locSymbol TkDot <?> "dot"
 
-doubleColon :: P r Token
-doubleColon = symbol TkDoubleColon <?> "::"
+doubleColon :: P r (L Token)
+doubleColon = locSymbol TkDoubleColon <?> "::"
 
-else' :: P r Token
-else' = symbol TkElse <?> "else"
+else' :: P r (L Token)
+else' = locSymbol TkElse <?> "else"
 
-elseif :: P r Token
-elseif = symbol TkElseif <?> "elseif"
+elseif :: P r (L Token)
+elseif = locSymbol TkElseif <?> "elseif"
 
-end :: P r Token
-end = symbol TkEnd <?> "end"
+end :: P r (L Token)
+end = locSymbol TkEnd <?> "end"
 
-eq :: P r Token
-eq = symbol TkEq <?> "="
+eq :: P r (L Token)
+eq = locSymbol TkEq <?> "="
 
-false :: P r Token
-false = symbol TkFalse <?> "false"
+false :: P r (L Token)
+false = locSymbol TkFalse <?> "false"
 
-floatLit :: P r String
-floatLit = (\(TkFloatLit s) -> s) <$> satisfy isFloatLit <?> "float literal"
+floatLit :: P r (L String)
+floatLit = (\(TkFloatLit s) -> s) <$$> locSatisfy isFloatLit <?> "float literal"
   where
     isFloatLit :: Token -> Bool
     isFloatLit (TkFloatLit _) = True
     isFloatLit _ = False
 
-for :: P r Token
-for = symbol TkFor <?> "for"
+for :: P r (L Token)
+for = locSymbol TkFor <?> "for"
 
-function :: P r Token
-function = symbol TkFunction <?> "function"
+function :: P r (L Token)
+function = locSymbol TkFunction <?> "function"
 
-goto :: P r Token
-goto = symbol TkGoto <?> "goto"
+goto :: P r (L Token)
+goto = locSymbol TkGoto <?> "goto"
 
-ident :: P r Ident
-ident = (\(TkIdent s) -> Ident s) <$> satisfy isIdent <?> "ident"
+ident :: P r (L Ident)
+ident = (\(TkIdent s) -> Ident s) <$$> locSatisfy isIdent <?> "ident"
   where
     isIdent :: Token -> Bool
     isIdent (TkIdent _) = True
     isIdent _ = False
 
-if' :: P r Token
-if' = symbol TkIf <?> "if"
+if' :: P r (L Token)
+if' = locSymbol TkIf <?> "if"
 
-in' :: P r Token
-in' = symbol TkIn <?> "in"
+in' :: P r (L Token)
+in' = locSymbol TkIn <?> "in"
 
-intLit :: P r String
-intLit = (\(TkIntLit s) -> s) <$> satisfy isIntLit <?> "int literal"
+intLit :: P r (L String)
+intLit = (\(TkIntLit s) -> s) <$$> locSatisfy isIntLit <?> "int literal"
   where
     isIntLit :: Token -> Bool
     isIntLit (TkIntLit _) = True
     isIntLit _ = False
 
-lbrace :: P r Token
-lbrace = symbol TkLBrace <?> "{"
+lbrace :: P r (L Token)
+lbrace = locSymbol TkLBrace <?> "{"
 
-lbracket :: P r Token
-lbracket = symbol TkLBracket <?> "["
+lbracket :: P r (L Token)
+lbracket = locSymbol TkLBracket <?> "["
 
-local :: P r Token
-local = symbol TkLocal <?> "local"
+local :: P r (L Token)
+local = locSymbol TkLocal <?> "local"
 
-lparen :: P r Token
-lparen = symbol TkLParen <?> "("
+lparen :: P r (L Token)
+lparen = locSymbol TkLParen <?> "("
 
-nil :: P r Token
-nil = symbol TkNil <?> "nil"
+nil :: P r (L Token)
+nil = locSymbol TkNil <?> "nil"
 
-rbrace :: P r Token
-rbrace = symbol TkRBrace <?> "}"
+rbrace :: P r (L Token)
+rbrace = locSymbol TkRBrace <?> "}"
 
-rbracket :: P r Token
-rbracket = symbol TkRBracket <?> "]"
+rbracket :: P r (L Token)
+rbracket = locSymbol TkRBracket <?> "]"
 
-repeat :: P r Token
-repeat = symbol TkRepeat <?> "repeat"
+repeat :: P r (L Token)
+repeat = locSymbol TkRepeat <?> "repeat"
 
-return' :: P r Token
-return' = symbol TkReturn <?> "return"
+return' :: P r (L Token)
+return' = locSymbol TkReturn <?> "return"
 
-rparen :: P r Token
-rparen = symbol TkRParen <?> ")"
+rparen :: P r (L Token)
+rparen = locSymbol TkRParen <?> ")"
 
-semi :: P r Token
-semi = symbol TkSemi <?> ";"
+semi :: P r (L Token)
+semi = locSymbol TkSemi <?> ";"
 
-stringLit :: P r String
-stringLit = (\(TkStringLit s) -> s) <$> satisfy isStringLit <?> "string literal"
+stringLit :: P r (L String)
+stringLit = (\(TkStringLit s) -> s) <$$> locSatisfy isStringLit <?> "string literal"
   where
     isStringLit :: Token -> Bool
     isStringLit (TkStringLit _) = True
     isStringLit _ = False
 
-then' :: P r Token
-then' = symbol TkThen <?> "then"
+then' :: P r (L Token)
+then' = locSymbol TkThen <?> "then"
 
-tripleDot :: P r Token
-tripleDot = symbol TkTripleDot <?> "..."
+tripleDot :: P r (L Token)
+tripleDot = locSymbol TkTripleDot <?> "..."
 
-true :: P r Token
-true = symbol TkTrue <?> "true"
+true :: P r (L Token)
+true = locSymbol TkTrue <?> "true"
 
-until :: P r Token
-until = symbol TkUntil <?> "until"
+until :: P r (L Token)
+until = locSymbol TkUntil <?> "until"
 
-while :: P r Token
-while = symbol TkWhile <?> "while"
+while :: P r (L Token)
+while = locSymbol TkWhile <?> "while"
+
+--------------------------------------------------------------------------------
+-- Misc. extras
+
+infixl 4 <$$>
+(<$$>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
+(<$$>) = fmap . fmap
+
+infixl 4 <$$
+(<$$) :: (Functor f, Functor g) => a -> f (g b) -> f (g a)
+x <$$ f = const x <$$> f
+
+--------------------------------------------------------------------------------
+-- Earley extras
+
+locSymbol :: Eq t => t -> Prod r e (L t) (L t)
+locSymbol = symbol . L NoLoc
+
+locSatisfy :: (t -> Bool) -> Prod r e (L t) (L t)
+locSatisfy p = satisfy (p . unLoc)
+
+--------------------------------------------------------------------------------
+-- Unfortunate orphans
+
+instance Functor L where
+    fmap f (L loc a) = L loc (f a)

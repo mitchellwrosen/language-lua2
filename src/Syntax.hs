@@ -1,5 +1,7 @@
 module Syntax where
 
+import Data.Loc
+
 -- http://www.lua.org/manual/5.3/manual.html#9
 -- -------------------------------------------
 --
@@ -71,64 +73,64 @@ newtype Ident = Ident { unIdent :: String }
     deriving Show
 
 data Block = Block
-    [Statement]               -- ^ Block statements.
-    [Expression]              -- ^ Block return expressions.
+    [L Statement]                 -- ^ Block statements.
+    [L Expression]                -- ^ Block return expressions.
     deriving Show
 
 data Statement
     = SSemi
     | SAssign
-        [Variable]            -- ^ Variables.
-        [Expression]          -- ^ Initializers.
+        [L Variable]              -- ^ Variables.
+        [L Expression]            -- ^ Initializers.
     | SFunctionCall
-        PrefixExpression
-        (Maybe Ident)
-        FunctionArgs
-    | SLabel Ident
+        (L PrefixExpression)
+        (Maybe (L Ident))
+        (L FunctionArgs)
+    | SLabel (L Ident)
     | SBreak
-    | SGoto Ident
-    | SDo Block
+    | SGoto (L Ident)
+    | SDo (L Block)
     | SWhile
-        Expression            -- ^ Condition.
-        Block                 -- ^ Body.
+        (L Expression)            -- ^ Condition.
+        (L Block)                 -- ^ Body.
     | SRepeat
-        Block                 -- ^ Body.
-        Expression            -- ^ Condition.
+        (L Block)                 -- ^ Body.
+        (L Expression)            -- ^ Condition.
     | SIf
-        Expression            -- ^ Condition.
-        Block                 -- ^ Body.
-        [(Expression, Block)] -- ^ Elseif branches.
-        (Maybe Block)         -- ^ Else branch.
+        (L Expression)            -- ^ Condition.
+        (L Block)                 -- ^ Body.
+        [(L Expression, L Block)] -- ^ Elseif branches.
+        (Maybe (L Block))         -- ^ Else branch.
     | SFor
-        Ident                 -- ^ Variable.
-        Expression            -- ^ Initializer.
-        Expression            -- ^ Condition.
-        (Maybe Expression)    -- ^ Loop expression.
-        Block                 -- ^ Body.
+        (L Ident)                 -- ^ Variable.
+        (L Expression)            -- ^ Initializer.
+        (L Expression)            -- ^ Condition.
+        (Maybe (L Expression))    -- ^ Loop expression.
+        (L Block)                 -- ^ Body.
     | SForIn
-        [Ident]               -- ^ Variables.
-        [Expression]          -- ^ Initializers.
-        Block                 -- ^ Body.
+        [L Ident]                 -- ^ Variables.
+        [L Expression]            -- ^ Initializers.
+        (L Block)                 -- ^ Body.
     | SFunctionDef
-        Ident                 -- ^ Name.
-        [Ident]               -- ^ More names interspersed with '.'
-        (Maybe Ident)         -- ^ Final optional name after ':'
-        [Ident]               -- ^ Arguments.
-        Bool                  -- ^ Variadic?
-        Block                 -- ^ Body.
+        (L Ident)                 -- ^ Name.
+        [L Ident]                 -- ^ More names interspersed with '.'
+        (Maybe (L Ident))         -- ^ Final optional name after ':'
+        [L Ident]                 -- ^ Arguments.
+        Bool                      -- ^ Variadic?
+        (L Block)                 -- ^ Body.
     | SLocalFunction
-        Ident                 -- ^ Name.
-        [Ident]               -- ^ Arguments.
-        Bool                  -- ^ Variadic?
-        Block                 -- ^ Body.
+        (L Ident)                 -- ^ Name.
+        [L Ident]                 -- ^ Arguments.
+        Bool                      -- ^ Variadic?
+        (L Block)                 -- ^ Body.
     | SLocalAssign
-        [Ident]               -- ^ Variables.
-        [Expression]          -- ^ Initializers.
+        [L Ident]                 -- ^ Variables.
+        [L Expression]            -- ^ Initializers.
     deriving Show
 
 data Variable
-    = VIdent Ident
-    | VIndex PrefixExpression Expression
+    = VIdent (L Ident)
+    | VIndex (L PrefixExpression) (L Expression)
     deriving Show
 
 data Expression
@@ -140,30 +142,30 @@ data Expression
     | EStringLit String
     | ETripleDot
     | EFunctionDef
-        [Ident]               -- Arguments.
-        Bool                  -- Variadic?
-        Block                 -- Body.
+        [L Ident]                 -- Arguments.
+        Bool                      -- Variadic?
+        (L Block)                 -- Body.
     | EPrefixExp PrefixExpression
-    | ETableConstructor [Field]
-    | EBinop Expression Binop Expression
-    | EUnop Unop Expression
+    | ETableConstructor [L Field]
+    | EBinop (L Expression) (L Binop) (L Expression)
+    | EUnop (L Unop) (L Expression)
     deriving Show
 
 data PrefixExpression
     = PEVar Variable
-    | PEFunctionCall PrefixExpression (Maybe Ident) FunctionArgs
-    | PEExpr Expression
+    | PEFunctionCall (L PrefixExpression) (Maybe (L Ident)) (L FunctionArgs)
+    | PEExpr (L Expression)
     deriving Show
 
 data FunctionArgs
-    = FAExprs [Expression]
-    | FATableConstructor [Field]
+    = FAExprs [L Expression]
+    | FATableConstructor [L Field]
     | FAStringLit String
     deriving Show
 
 data Field
-    = FExprAssign Expression Expression
-    | FIdentAssign Ident Expression
+    = FExprAssign (L Expression) (L Expression)
+    | FIdentAssign (L Ident) (L Expression)
     | FExpr Expression
     deriving Show
 

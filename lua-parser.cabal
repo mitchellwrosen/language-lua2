@@ -23,6 +23,7 @@ library
                       , Earley
                       , lexer-applicative
                       , regex-applicative
+                      , srcloc
                       , unordered-containers
   default-language:     Haskell2010
   default-extensions:   OverloadedLists
@@ -31,6 +32,7 @@ library
                       , RankNTypes
                       , RecursiveDo
                       , TupleSections
+                      , ViewPatterns
   ghc-options:        -Wall
 
 executable interactive-lexer
