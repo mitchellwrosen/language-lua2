@@ -147,7 +147,7 @@ data Expression
         (L Block)                 -- Body.
     | EPrefixExp PrefixExpression
     | ETableConstructor [L Field]
-    | EBinop (L Expression) (L Binop) (L Expression)
+    | EBinop (L Binop) (L Expression) (L Expression)
     | EUnop (L Unop) (L Expression)
     deriving Show
 

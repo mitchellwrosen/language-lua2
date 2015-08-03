@@ -1,5 +1,6 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
@@ -22,9 +23,17 @@ main = getArgs >>= \case
         putStrLn "Using expression grammar. Use -s for statement, or -b for block"
         go expressionGrammar
 
-go :: Show a => (forall r. Grammar r String (Prod r String (L Token) a)) -> IO ()
+go :: forall a. Show a => (forall r. Grammar r String (Prod r String (L Token) a)) -> IO ()
 go grammar = forever $
     getLine
-      >>= either print (\xs -> print $ fullParses $ parser grammar xs)
+      >>= either print (\xs -> f $ fullParses $ parser grammar xs)
           . streamToEitherList
           . runLexer luaLexer "stdin"
+  where
+    f :: ([a], Report String [L Token]) -> IO ()
+    f ([x], _) = print x
+    f ([], r)  = putStrLn ("Parse error: " ++ show r)
+    f (xs, r)  = do
+        putStrLn "Ambiguous grammar."
+        mapM_ print xs
+        print r

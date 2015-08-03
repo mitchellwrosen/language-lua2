@@ -246,7 +246,7 @@ grammar = mdo
         ]
 
     combineMixfix :: [Maybe (L Token)] -> [L Expression] -> L Expression
-    combineMixfix (viewBinop -> Just (L loc tk)) [e1, e2] = L (locOf e1 <> locOf e2) (EBinop e1 (L loc (tk2binop tk)) e2)
+    combineMixfix (viewBinop -> Just (L loc tk)) [e1, e2] = L (locOf e1 <> locOf e2) (EBinop (L loc (tk2binop tk)) e1 e2)
     combineMixfix (viewUnop -> Just (L loc tk)) [e] = L (loc <> locOf e) (EUnop (L loc (tk2unop tk)) e)
     combineMixfix xs ys = error $ printf "Earley messed up?\nHoles: %s\nExprs: %s\n" (show xs) (show ys)
 
@@ -280,10 +280,14 @@ grammar = mdo
     tk2binop TkNeq          = BNeq
     tk2binop TkAnd          = BAnd
     tk2binop TkOr           = BOr
-    tk2binop tk             = error $ "Token " ++ show tk ++ " does not correspond to a binary op"
+    tk2binop tk             = error $ printf "Token %s does not correspond to a binary op" (show tk)
 
     tk2unop :: Token -> Unop
-    tk2unop = undefined
+    tk2unop TkNot   = UNot
+    tk2unop TkHash  = UHash
+    tk2unop TkDash  = UDash
+    tk2unop TkTilde = UDash
+    tk2unop tk      = error $ printf "Token %s does not correspond to a unary op" (show tk)
 
 --------------------------------------------------------------------------------
 -- Non-recursive non-terminals
