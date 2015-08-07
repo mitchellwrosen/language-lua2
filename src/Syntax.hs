@@ -1,201 +1,169 @@
+-- | Abstract syntax of Lua 5.3 source files. See
+-- <http://www.lua.org/manual/5.3/> for more information.
+
 module Syntax where
 
+import Data.Data
+import Data.List.NonEmpty
 import Data.Loc
 
--- http://www.lua.org/manual/5.3/manual.html#9
--- -------------------------------------------
+-- | An identifier, defined as any string of letters, digits, or underscores,
+-- not beginning with a digit.
 --
--- chunk ::= block
---
--- block ::= {stat} [retstat]
---
--- stat ::=  ‘;’ |
---      varlist ‘=’ explist |
---      functioncall |
---      label |
---      break |
---      goto Name |
---      do block end |
---      while exp do block end |
---      repeat block until exp |
---      if exp then block {elseif exp then block} [else block] end |
---      for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end |
---      for namelist in explist do block end |
---      function funcname funcbody |
---      local function Name funcbody |
---      local namelist [‘=’ explist]
---
--- retstat ::= return [explist] [‘;’]
---
--- label ::= ‘::’ Name ‘::’
---
--- funcname ::= Name {‘.’ Name} [‘:’ Name]
---
--- varlist ::= var {‘,’ var}
---
--- var ::=  Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name
---
--- namelist ::= Name {‘,’ Name}
---
--- explist ::= exp {‘,’ exp}
---
--- exp ::=  nil | false | true | Numeral | LiteralString | ‘...’ | functiondef |
---      prefixexp | tableconstructor | exp binop exp | unop exp
---
--- prefixexp ::= var | functioncall | ‘(’ exp ‘)’
---
--- functioncall ::=  prefixexp args | prefixexp ‘:’ Name args
---
--- args ::=  ‘(’ [explist] ‘)’ | tableconstructor | LiteralString
---
--- functiondef ::= function funcbody
---
--- funcbody ::= ‘(’ [parlist] ‘)’ block end
---
--- parlist ::= namelist [‘,’ ‘...’] | ‘...’
---
--- tableconstructor ::= ‘{’ [fieldlist] ‘}’
---
--- fieldlist ::= field {fieldsep field} [fieldsep]
---
--- field ::= ‘[’ exp ‘]’ ‘=’ exp | Name ‘=’ exp | exp
---
--- fieldsep ::= ‘,’ | ‘;’
---
--- binop ::=  ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’ |
---      ‘&’ | ‘~’ | ‘|’ | ‘>>’ | ‘<<’ | ‘..’ |
---      ‘<’ | ‘<=’ | ‘>’ | ‘>=’ | ‘==’ | ‘~=’ |
---      and | or
---
--- unop ::= ‘-’ | not | ‘#’ | ‘~’
+-- <http://www.lua.org/manual/5.3/manual.html#3.1>
+data Ident a = Ident a String
+    deriving (Data, Functor, Show, Typeable)
 
-newtype Ident = Ident { unIdent :: String }
-    deriving Show
+-- | A chunk; Lua's compilation unit.
+--
+-- <http://www.lua.org/manual/5.3/manual.html#3.3.2>
+type Chunk a = Block a
 
-data Block = Block
-    [L Statement]                 -- ^ Block statements.
-    [L Expression]                -- ^ Block return expressions.
-    deriving Show
+-- | A block of statements, possibly ending in a return statement.
+--
+-- <http://www.lua.org/manual/5.3/manual.html#3.3.1>
+data Block a = Block a [Statement a] (Maybe (ReturnStatement a))
+    deriving (Data, Functor, Show, Typeable)
 
-data Statement
-    = SSemi
-    | SAssign
-        [L Variable]              -- ^ Variables.
-        [L Expression]            -- ^ Initializers.
-    | SFunctionCall
-        (L PrefixExpression)
-        (Maybe (L Ident))
-        (L FunctionArgs)
-    | SLabel (L Ident)
-    | SBreak
-    | SGoto (L Ident)
-    | SDo (L Block)
-    | SWhile
-        (L Expression)            -- ^ Condition.
-        (L Block)                 -- ^ Body.
-    | SRepeat
-        (L Block)                 -- ^ Body.
-        (L Expression)            -- ^ Condition.
-    | SIf
-        (L Expression)            -- ^ Condition.
-        (L Block)                 -- ^ Body.
-        [(L Expression, L Block)] -- ^ Elseif branches.
-        (Maybe (L Block))         -- ^ Else branch.
-    | SFor
-        (L Ident)                 -- ^ Variable.
-        (L Expression)            -- ^ Initializer.
-        (L Expression)            -- ^ Condition.
-        (Maybe (L Expression))    -- ^ Loop expression.
-        (L Block)                 -- ^ Body.
-    | SForIn
-        [L Ident]                 -- ^ Variables.
-        [L Expression]            -- ^ Initializers.
-        (L Block)                 -- ^ Body.
-    | SFunctionDef
-        (L Ident)                 -- ^ Name.
-        [L Ident]                 -- ^ More names interspersed with '.'
-        (Maybe (L Ident))         -- ^ Final optional name after ':'
-        [L Ident]                 -- ^ Arguments.
-        Bool                      -- ^ Variadic?
-        (L Block)                 -- ^ Body.
-    | SLocalFunction
-        (L Ident)                 -- ^ Name.
-        [L Ident]                 -- ^ Arguments.
-        Bool                      -- ^ Variadic?
-        (L Block)                 -- ^ Body.
-    | SLocalAssign
-        [L Ident]                 -- ^ Variables.
-        [L Expression]            -- ^ Initializers.
-    deriving Show
+data Statement a
+    = EmptyStmt a                          -- ^ @;@
+    | Assign a [Variable a] [Expression a] -- ^ @var1, var2, var3 = exp1, exp2, exp3@
+    | FunCall a (FunctionCall a)
+    | Label a (Ident a)
+    | Break a
+    | Goto a (Ident a)
+    | Do a (Block a)
+    | While a (Expression a) (Block a)
+    | Repeat a (Block a) (Expression a)
+    | If a (NonEmpty (Expression a, Block a)) (Maybe (Block a))
+    | For a (Ident a) (Expression a) (Expression a) (Maybe (Expression a)) (Block a)
+    | ForIn a [Ident a] [Expression a] (Block a)
+    | FunAssign a (Ident a) [Ident a] (Maybe (Ident a)) (FunctionBody a)
+    | LocalFunAssign a (Ident a) (FunctionBody a)
+    | LocalAssign a [Ident a] [Expression a]
+    deriving (Data, Functor, Show, Typeable)
 
-data Variable
-    = VIdent (L Ident)
-    | VIndex (L PrefixExpression) (L Expression)
-    deriving Show
+data ReturnStatement a = ReturnStatement a [Expression a]
+    deriving (Data, Functor, Show, Typeable)
 
-data Expression
-    = ENil
-    | ETrue
-    | EFalse
-    | EIntLit String
-    | EFloatLit String
-    | EStringLit String
-    | ETripleDot
-    | EFunctionDef
-        [L Ident]                 -- Arguments.
-        Bool                      -- Variadic?
-        (L Block)                 -- Body.
-    | EPrefixExp PrefixExpression
-    | ETableConstructor [L Field]
-    | EBinop (L Binop) (L Expression) (L Expression)
-    | EUnop (L Unop) (L Expression)
-    deriving Show
+-- | There are three kinds of variables in Lua: global variables, local variables, and table fields.
+--
+-- <http://www.lua.org/manual/5.3/manual.html#3.2>
+data Variable a
+    = VarIdent a (Ident a)                           -- ^ A local or global variable.
+    | VarField a (PrefixExpression a) (Expression a) -- ^ @table[exp]@
+    | VarFieldName a (PrefixExpression a) (Ident a)  -- ^ @table.field@
+    deriving (Data, Functor, Show, Typeable)
 
-data PrefixExpression
-    = PEVar Variable
-    | PEFunctionCall (L PrefixExpression) (Maybe (L Ident)) (L FunctionArgs)
-    | PEExpr (L Expression)
-    deriving Show
+data Expression a
+    = Nil a
+    | Bool a Bool
+    | Integer a String
+    | Float a String
+    | String a String
+    | Vararg a
+    | FunDef a (FunctionBody a)
+    | PrefixExp a (PrefixExpression a)
+    | TableConstructor a [Field a]
+    | Binop a (Binop a) (Expression a) (Expression a)
+    | Unop a (Unop a) (Expression a)
+    deriving (Data, Functor, Show, Typeable)
 
-data FunctionArgs
-    = FAExprs [L Expression]
-    | FATableConstructor [L Field]
-    | FAStringLit String
-    deriving Show
+data PrefixExpression a
+    = PrefixVar a (Variable a)
+    | PrefixFunCall a (FunctionCall a)
+    | Parens a (Expression a)
+    deriving (Data, Functor, Show, Typeable)
 
-data Field
-    = FExprAssign (L Expression) (L Expression)
-    | FIdentAssign (L Ident) (L Expression)
-    | FExpr Expression
-    deriving Show
+data FunctionCall a
+    = FunctionCall a (PrefixExpression a) (FunctionArgs a)
+    | MethodCall a (PrefixExpression a) (Ident a) (FunctionArgs a)
+    deriving (Data, Functor, Show, Typeable)
 
-data Binop
-    = BPlus         -- +
-    | BDash         -- -
-    | BStar         -- *
-    | BFslash       -- /
-    | BDoubleFslash -- //
-    | BCarrot       -- ^
-    | BPct          -- %
-    | BAmp          -- &
-    | BTilde        -- ~
-    | BPipe         -- |
-    | BRShift       -- >>
-    | BLShift       -- <<
-    | BDoubleDot    -- ..
-    | BLt           -- <
-    | BLeq          -- <=
-    | BGt           -- >
-    | BGeq          -- >=
-    | BDoubleEq     -- ==
-    | BNeq          -- ~=
-    | BAnd          -- and
-    | BOr           -- or
-    deriving Show
+data FunctionArgs a
+    = Args a [Expression a]
+    | ArgsTable a [Field a]
+    | ArgsString a String
+    deriving (Data, Functor, Show, Typeable)
 
-data Unop
-    = UDash  -- -
-    | UNot   -- not
-    | UHash  -- #
-    | UTilde -- ~
-    deriving Show
+data FunctionBody a
+    = FunctionBody a [Ident a] (Maybe a) (Block a)
+    deriving (Data, Functor, Show, Typeable)
+
+data Field a
+    = FieldExp a (Expression a) (Expression a) -- ^ @[exp1] = exp2@
+    | FieldIdent a (Ident a) (Expression a)    -- ^ @name = exp@
+    | Field a (Expression a)                   -- ^ @exp@
+    deriving (Data, Functor, Show, Typeable)
+
+data Binop a
+    = Plus a       -- ^ +
+    | Minus a      -- ^ -
+    | Mult a       -- ^ *
+    | FloatDiv a   -- ^ /
+    | FloorDiv a   -- ^ //
+    | Exponent a   -- ^ ^
+    | Modulo a     -- ^ %
+    | BitwiseAnd a -- ^ &
+    | BitwiseXor a -- ^ ~
+    | BitwiseOr a  -- ^ |
+    | Rshift a     -- ^ >>
+    | Lshift a     -- ^ <<
+    | Concat a     -- ^ ..
+    | Lt a         -- ^ <
+    | Leq a        -- ^ <=
+    | Gt a         -- ^ >
+    | Geq a        -- ^ >=
+    | Eq a         -- ^ ==
+    | Neq a        -- ^ ~=
+    | And a        -- ^ and
+    | Or a         -- ^ or
+    deriving (Data, Functor, Show, Typeable)
+
+data Unop a
+    = Negate a     -- -
+    | Not a        -- not
+    | Length a     -- #
+    | BitwiseNot a -- ~
+    deriving (Data, Functor, Show, Typeable)
+
+--------------------------------------------------------------------------------
+-- Annotated
+
+class Functor ast => Annotated ast where
+    ann :: ast a -> a
+    ann = undefined
+
+    amap :: (a -> a) -> ast a -> ast a
+    amap = undefined
+
+-- TODO: All of these
+
+instance Annotated Ident where
+
+instance Annotated Block where
+
+instance Annotated Statement where
+
+instance Annotated ReturnStatement where
+
+instance Annotated Variable where
+
+instance Annotated Expression where
+
+instance Annotated PrefixExpression where
+
+instance Annotated FunctionCall where
+
+instance Annotated FunctionArgs where
+
+instance Annotated FunctionBody where
+
+instance Annotated Field where
+
+instance Annotated Binop where
+
+instance Annotated Unop where
+
+-- Unfortunate orphans
+deriving instance Functor L
