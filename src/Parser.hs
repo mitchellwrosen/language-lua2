@@ -13,6 +13,7 @@ import Data.List.NonEmpty  (NonEmpty((:|)))
 import Data.Loc
 import Data.Maybe          (fromMaybe)
 import Data.Monoid
+import Lens.Micro
 import Prelude             hiding (break, repeat, until)
 import Text.Earley
 import Text.Earley.Mixfix
@@ -42,13 +43,13 @@ grammar = mdo
             <$> varList1
             <*  eq
             <*> expressionList1
-        <|> (\a -> FunCall (ann a) a) <$> functionCall
+        <|> (\a -> FunCall (a^.ann) a) <$> functionCall
         <|> (\a b c -> Label (locOf a <> locOf c) b)
             <$> doubleColon
             <*> ident
             <*> doubleColon
         <|> Break . locOf <$> break
-        <|> (\a b -> Goto (locOf a <> ann b) b)
+        <|> (\a b -> Goto (locOf a <> b^.ann) b)
             <$> goto
             <*> ident
         <|> (\a b c -> Do (locOf a <> locOf c) b)
@@ -61,7 +62,7 @@ grammar = mdo
             <*  do'
             <*> block
             <*> end
-        <|> (\a b c -> Repeat (locOf a <> ann c) b c)
+        <|> (\a b c -> Repeat (locOf a <> c^.ann) b c)
             <$> repeat
             <*> block
             <*  until
@@ -96,13 +97,13 @@ grammar = mdo
             <*  do'
             <*> block
             <*> end
-        <|> (\a b c d e -> FunAssign (locOf a <> ann e) b c d e)
+        <|> (\a b c d e -> FunAssign (locOf a <> e^.ann) b c d e)
             <$> function
             <*> ident
             <*> ident `sepBy` dot
             <*> optional (colon *> ident)
             <*> functionBody
-        <|> (\a b c -> LocalFunAssign (locOf a <> ann c) b c)
+        <|> (\a b c -> LocalFunAssign (locOf a <> c^.ann) b c)
             <$> local
             <*  function
             <*> ident
@@ -122,14 +123,14 @@ grammar = mdo
         var `sepBy1` comma
 
     var :: P r (Variable Loc) <- rule $
-            (\a -> VarIdent (ann a) a)
+            (\a -> VarIdent (a^.ann) a)
                 <$> ident
-        <|> (\a b c -> VarField (ann a <> locOf c) a b)
+        <|> (\a b c -> VarField (a^.ann <> locOf c) a b)
             <$> prefixExpression
             <*  lbracket
             <*> expression
             <*> rbracket
-        <|> (\a b -> VarFieldName (ann a <> ann b) a b)
+        <|> (\a b -> VarFieldName (a^.ann <> b^.ann) a b)
             <$> prefixExpression
             <*  dot
             <*> ident
@@ -151,12 +152,12 @@ grammar = mdo
         <|> (\(L loc a) -> Float loc a)            <$> floatLit
         <|> (\(L loc a) -> String loc a)           <$> stringLit
         <|> Vararg . locOf                         <$> tripleDot
-        <|> (\a -> PrefixExp (ann a) a)            <$> prefixExpression
+        <|> (\a -> PrefixExp (a^.ann) a)       <$> prefixExpression
         <|> (\(L loc a) -> TableConstructor loc a) <$> tableConstructor
 
     prefixExpression :: P r (PrefixExpression Loc) <- rule $
-            (\a -> PrefixVar (ann a) a) <$> var
-        <|> (\a -> PrefixFunCall (ann a) a) <$> functionCall
+            (\a -> PrefixVar (a^.ann) a) <$> var
+        <|> (\a -> PrefixFunCall (a^.ann) a) <$> functionCall
         <|> (\a b c -> Parens (locOf a <> locOf c) b)
             <$> lparen
             <*> expression
@@ -164,8 +165,8 @@ grammar = mdo
 
     functionCall :: P r (FunctionCall Loc) <- rule $
         (\a mb c -> case mb of
-                        Nothing -> FunctionCall (ann a <> ann c) a c
-                        Just b  -> MethodCall (ann a <> ann c) a b c)
+                        Nothing -> FunctionCall (a^.ann <> c^.ann) a c
+                        Just b  -> MethodCall (a^.ann <> c^.ann) a b c)
             <$> prefixExpression
             <*> optional (comma *> ident)
             <*> functionArgs
@@ -195,17 +196,17 @@ grammar = mdo
             <*> rbrace
 
     field :: P r (Field Loc) <- rule $
-            (\a b c -> FieldExp (locOf a <> ann c) b c)
+            (\a b c -> FieldExp (locOf a <> c^.ann) b c)
             <$> lbracket
             <*> expression
             <*  rbracket
             <*  eq
             <*> expression
-        <|> (\a b -> FieldIdent (ann a <> ann b) a b)
+        <|> (\a b -> FieldIdent (a^.ann <> b^.ann) a b)
             <$> ident
             <*  eq
             <*> expression
-        <|> (\a -> Field (ann a) a) <$> expression
+        <|> (\a -> Field (a^.ann) a) <$> expression
 
     return (SrcLoc <$$> block, SrcLoc <$$> statement, SrcLoc <$$> expression)
   where
@@ -251,8 +252,8 @@ grammar = mdo
         ]
 
     combineMixfix :: [Maybe (L Token)] -> [Expression Loc] -> Expression Loc
-    combineMixfix (viewBinop -> Just tk) [e1, e2] = Binop (ann e1 <> ann e2) (tk2binop tk) e1 e2
-    combineMixfix (viewUnop -> Just tk) [e] = Unop (locOf tk <> ann e) (tk2unop tk) e
+    combineMixfix (viewBinop -> Just tk) [e1, e2] = Binop (e1^.ann <> e2^.ann) (tk2binop tk) e1 e2
+    combineMixfix (viewUnop -> Just tk) [e] = Unop (locOf tk <> e^.ann) (tk2unop tk) e
     combineMixfix xs ys = error $ printf "Earley messed up?\nHoles: %s\nExprs: %s\n" (show xs) (show ys)
 
     viewBinop :: [Maybe (L Token)] -> Maybe (L Token)
@@ -295,7 +296,7 @@ grammar = mdo
     tk2unop (L _ tk)        = error $ printf "Token %s does not correspond to a unary op" (show tk)
 
 annF :: (Foldable t, Monoid m, Annotated ast) => t (ast m) -> m
-annF = foldMap ann
+annF = foldMap (^. ann)
 
 --------------------------------------------------------------------------------
 -- Non-recursive non-terminals

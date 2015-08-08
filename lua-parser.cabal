@@ -23,9 +23,11 @@ library
   build-depends:        base >= 4.7 && < 5
                       , Earley
                       , lexer-applicative
+                      , microlens
                       , regex-applicative
                       , semigroups
                       , srcloc
+                      , transformers
                       , unordered-containers
   default-language:     Haskell2010
   default-extensions:   DeriveDataTypeable
