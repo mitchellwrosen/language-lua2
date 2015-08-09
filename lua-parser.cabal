@@ -42,6 +42,16 @@ library
                       , ViewPatterns
   ghc-options:        -Wall
 
+executable parse
+  hs-source-dirs:       app
+  main-is:              Parse.hs
+  build-depends:        base
+                      , Earley
+                      , lexer-applicative
+                      , lua-parser
+                      , srcloc
+  default-language:     Haskell2010
+
 executable interactive-lexer
   hs-source-dirs:       app
   main-is:              InteractiveLexer.hs
