@@ -4,7 +4,7 @@
 module Syntax where
 
 import Data.Data
-import Data.List.NonEmpty
+import Data.List.NonEmpty (NonEmpty(..))
 import Lens.Micro
 
 -- | An identifier, defined as any string of letters, digits, or underscores,
@@ -26,8 +26,8 @@ data Block a = Block a [Statement a] (Maybe (ReturnStatement a))
     deriving (Data, Functor, Show, Typeable)
 
 data Statement a
-    = EmptyStmt a                          -- ^ @;@
-    | Assign a [Variable a] [Expression a] -- ^ @var1, var2, var3 = exp1, exp2, exp3@
+    = EmptyStmt a                                                -- ^ @;@
+    | Assign a (NonEmpty (Variable a)) (NonEmpty (Expression a)) -- ^ @var1, var2, var3 = exp1, exp2, exp3@
     | FunCall a (FunctionCall a)
     | Label a (Ident a)
     | Break a
@@ -37,10 +37,10 @@ data Statement a
     | Repeat a (Block a) (Expression a)
     | If a (NonEmpty (Expression a, Block a)) (Maybe (Block a))
     | For a (Ident a) (Expression a) (Expression a) (Maybe (Expression a)) (Block a)
-    | ForIn a [Ident a] [Expression a] (Block a)
-    | FunAssign a (Ident a) [Ident a] (Maybe (Ident a)) (FunctionBody a)
+    | ForIn a (NonEmpty (Ident a)) (NonEmpty (Expression a)) (Block a)
+    | FunAssign a (NonEmpty (Ident a)) (Maybe (Ident a)) (FunctionBody a)
     | LocalFunAssign a (Ident a) (FunctionBody a)
-    | LocalAssign a [Ident a] [Expression a]
+    | LocalAssign a (NonEmpty (Ident a)) [Expression a]
     deriving (Data, Functor, Show, Typeable)
 
 data ReturnStatement a = ReturnStatement a [Expression a]
@@ -154,7 +154,7 @@ instance Annotated Statement where
         f (If a _ _)             = a
         f (For a _ _ _ _ _)      = a
         f (ForIn a _ _ _)        = a
-        f (FunAssign a _ _ _ _)  = a
+        f (FunAssign a _ _ _)    = a
         f (LocalFunAssign a _ _) = a
         f (LocalAssign a _ _)    = a
 
@@ -170,7 +170,7 @@ instance Annotated Statement where
         g (If _ b c)             a = If a b c
         g (For _ b c d e h)      a = For a b c d e h
         g (ForIn _ b c d)        a = ForIn a b c d
-        g (FunAssign _ b c d e)  a = FunAssign a b c d e
+        g (FunAssign _ b c d)    a = FunAssign a b c d
         g (LocalFunAssign _ b c) a = LocalFunAssign a b c
         g (LocalAssign _ b c)    a = LocalAssign a b c
 

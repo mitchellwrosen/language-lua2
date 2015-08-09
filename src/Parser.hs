@@ -10,6 +10,7 @@ import Token
 
 import Control.Applicative
 import Data.List.NonEmpty  (NonEmpty((:|)))
+import qualified Data.List.NonEmpty as NE
 import Data.Loc
 import Data.Maybe          (fromMaybe)
 import Data.Monoid
@@ -39,7 +40,10 @@ grammar = mdo
             <*> optional returnStatement
 
     statement :: P r (Statement Loc) <-
-        sepBy ident dot >>= \identSepByDot -> rule $
+        sepBy1 ident dot        >>= \identSepByDot   ->
+        sepBy1 var comma        >>= \varList1        ->
+        sepBy1 expression comma >>= \expressionList1 -> rule $
+
             EmptyStmt . locOf <$> semi
         <|> (\a b -> Assign (annF a <> annF b) a b)
             <$> varList1
@@ -99,9 +103,8 @@ grammar = mdo
             <*  do'
             <*> block
             <*> end
-        <|> (\a b c d e -> FunAssign (locOf a <> e^.ann) b c d e)
+        <|> (\a b c d -> FunAssign (locOf a <> d^.ann) b c d)
             <$> function
-            <*> ident
             <*> identSepByDot
             <*> optional (colon *> ident)
             <*> functionBody
@@ -110,7 +113,7 @@ grammar = mdo
             <*  function
             <*> ident
             <*> functionBody
-        <|> (\a b c -> LocalAssign (locOf a <> annF b <> maybe mempty annF c) b (fromMaybe [] c))
+        <|> (\a b c -> LocalAssign (locOf a <> annF b <> maybe mempty annF c) b (maybe [] NE.toList c))
             <$> local
             <*> nameList1
             <*> optional (eq *> expressionList1)
@@ -120,9 +123,6 @@ grammar = mdo
             <$> return'
             <*> expressionList
             <*> optional semi
-
-    varList1 :: P r [Variable Loc] <-
-        var `sepBy1` comma
 
     var :: P r (Variable Loc) <- rule $
             (\a -> VarIdent (a^.ann) a)
@@ -137,14 +137,9 @@ grammar = mdo
             <*  dot
             <*> ident
 
-    nameList1 :: P r [Ident Loc] <-
-        ident `sepBy` comma
+    nameList1 :: P r (NonEmpty (Ident Loc)) <- ident `sepBy1` comma
 
-    expressionList :: P r [Expression Loc] <-
-        expression `sepBy` comma
-
-    expressionList1 :: P r [Expression Loc] <-
-        expression `sepBy1` comma
+    expressionList :: P r [Expression Loc] <- expression `sepBy` comma
 
     expression :: P r (Expression Loc) <-
         mixfixExpression expressionTable atomicExpression combineMixfix
@@ -157,7 +152,7 @@ grammar = mdo
         <|> (\(L loc a) -> Float loc a)            <$> floatLit
         <|> (\(L loc a) -> String loc a)           <$> stringLit
         <|> Vararg . locOf                         <$> tripleDot
-        <|> (\a -> PrefixExp (a^.ann) a)       <$> prefixExpression
+        <|> (\a -> PrefixExp (a^.ann) a)           <$> prefixExpression
         <|> (\(L loc a) -> TableConstructor loc a) <$> tableConstructor
 
     prefixExpression :: P r (PrefixExpression Loc) <- rule $
@@ -194,7 +189,7 @@ grammar = mdo
 
     parList :: P r ([Ident Loc], Maybe Loc) <- rule $
         let withNames = (,)
-                <$> nameList1
+                <$> (NE.toList <$> nameList1)
                 <*> optional ((\a b -> locOf a <> locOf b) <$> comma <*> tripleDot)
 
             withoutNames = ([],) . Just . locOf <$> tripleDot
@@ -323,12 +318,12 @@ annF = foldMap (^. ann)
 -- Combinators
 
 sepBy :: Prod r e t a -> Prod r e t sep -> Grammar r e (Prod r e t [a])
-sepBy f sep = (<|> pure []) <$> sepBy1 f sep
+sepBy f sep = (<|> pure []) <$> (NE.toList <$$> sepBy1 f sep)
 
-sepBy1 :: Prod r e t a -> Prod r e t sep -> Grammar r e (Prod r e t [a])
+sepBy1 :: Prod r e t a -> Prod r e t sep -> Grammar r e (Prod r e t (NonEmpty a))
 sepBy1 f sep = mdo
     fs <- rule $ liftA3 (const (:)) sep f fs <|> pure []
-    rule $ liftA2 (:) f fs
+    rule $ liftA2 (:|) f fs
 
 --------------------------------------------------------------------------------
 -- Token productions
