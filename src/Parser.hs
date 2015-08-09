@@ -23,16 +23,16 @@ import Text.Printf         (printf)
 type P r a = Prod r String (L Token) a
 type G r a = Grammar r String (P r a)
 
-blockGrammar :: G r (Block SrcLoc)
+blockGrammar :: G r (Block Loc)
 blockGrammar = (\(a,_,_) -> a) <$> grammar
 
-statementGrammar :: G r (Statement SrcLoc)
+statementGrammar :: G r (Statement Loc)
 statementGrammar = (\(_,b,_) -> b) <$> grammar
 
-expressionGrammar :: G r (Expression SrcLoc)
+expressionGrammar :: G r (Expression Loc)
 expressionGrammar = (\(_,_,c) -> c) <$> grammar
 
-grammar :: Grammar r String (P r (Block SrcLoc), P r (Statement SrcLoc), P r (Expression SrcLoc))
+grammar :: Grammar r String (P r (Block Loc), P r (Statement Loc), P r (Expression Loc))
 grammar = mdo
     block :: P r (Block Loc) <- rule $
         (\a b -> Block (annF a <> annF b) a b)
@@ -218,7 +218,7 @@ grammar = mdo
             <*> expression
         <|> (\a -> Field (a^.ann) a) <$> expression
 
-    return (SrcLoc <$$> block, SrcLoc <$$> statement, SrcLoc <$$> expression)
+    return (block, statement, expression)
   where
     -- http://www.lua.org/manual/5.3/manual.html#3.4.8
     expressionTable :: [[([Maybe (P r (L Token))], Associativity)]]

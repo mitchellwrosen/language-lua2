@@ -23,7 +23,7 @@ main = getArgs >>= \case
         . streamToEitherList
         . runLexer luaLexer file
       where
-        f :: ([Block SrcLoc], Report String [L Token]) -> IO ()
+        f :: ([Block Loc], Report String [L Token]) -> IO ()
         f ([x], _) = print x
         f ([], r)  = putStrLn ("Parse error: " ++ show r)
         f (xs, r)  = do

@@ -58,6 +58,7 @@ executable interactive-lexer
   build-depends:        base
                       , lexer-applicative
                       , lua-parser
+                      , srcloc
   default-language:     Haskell2010
 
 executable interactive-parser
