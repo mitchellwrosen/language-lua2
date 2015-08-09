@@ -21,6 +21,7 @@ library
   hs-source-dirs:       src
   exposed-modules:      Lexer
                       , Parser
+                      , Pretty
                       , Syntax
                       , Token
   other-modules:        Internal
@@ -28,6 +29,7 @@ library
                       , Earley
                       , lexer-applicative
                       , microlens
+                      , pretty
                       , regex-applicative
                       , semigroups
                       , srcloc
