@@ -145,15 +145,15 @@ grammar = mdo
         mixfixExpression expressionTable atomicExpression combineMixfix
 
     atomicExpression :: P r (Expression Loc) <- rule $
-            Nil . locOf                            <$> nil
-        <|> (\a -> Bool (locOf a) True)            <$> true
-        <|> (\a -> Bool (locOf a) False)           <$> false
-        <|> (\(L loc a) -> Integer loc a)          <$> intLit
-        <|> (\(L loc a) -> Float loc a)            <$> floatLit
-        <|> (\(L loc a) -> String loc a)           <$> stringLit
-        <|> Vararg . locOf                         <$> tripleDot
-        <|> (\a -> PrefixExp (a^.ann) a)           <$> prefixExpression
-        <|> (\(L loc a) -> TableConstructor loc a) <$> tableConstructor
+            Nil . locOf                    <$> nil
+        <|> (\a -> Bool (locOf a) True)    <$> true
+        <|> (\a -> Bool (locOf a) False)   <$> false
+        <|> (\(L loc a) -> Integer loc a)  <$> intLit
+        <|> (\(L loc a) -> Float loc a)    <$> floatLit
+        <|> (\(L loc a) -> String loc a)   <$> stringLit
+        <|> Vararg . locOf                 <$> tripleDot
+        <|> (\a -> PrefixExp (a^.ann) a)   <$> prefixExpression
+        <|> (\a -> TableCtor (a^.ann) a)   <$> tableConstructor
 
     prefixExpression :: P r (PrefixExpression Loc) <- rule $
             (\a -> PrefixVar (a^.ann) a) <$> var
@@ -176,7 +176,7 @@ grammar = mdo
             <$> lparen
             <*> expressionList
             <*> rparen
-        <|> (\(L loc a) -> ArgsTable loc a) <$> tableConstructor
+        <|> (\a -> ArgsTable (a^.ann) a) <$> tableConstructor
         <|> (\(L loc a) -> ArgsString loc a) <$> stringLit
 
     functionBody :: P r (FunctionBody Loc) <- rule $
@@ -196,10 +196,10 @@ grammar = mdo
 
         in withNames <|> withoutNames
 
-    tableConstructor :: P r (L [Field Loc]) <-
+    tableConstructor :: P r (TableConstructor Loc) <-
         let sep = comma <|> semi
         in sepBy field sep >>= \fields -> rule $
-            (\a b c -> L (locOf a <> locOf c) b)
+            (\a b c -> TableConstructor (locOf a <> locOf c) b)
             <$> lbrace
             <*> fields
             <*  optional sep

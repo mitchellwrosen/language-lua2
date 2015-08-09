@@ -64,7 +64,7 @@ data Expression a
     | Vararg a
     | FunDef a (FunctionBody a)
     | PrefixExp a (PrefixExpression a)
-    | TableConstructor a [Field a]
+    | TableCtor a (TableConstructor a)
     | Binop a (Binop a) (Expression a) (Expression a)
     | Unop a (Unop a) (Expression a)
     deriving (Data, Functor, Show, Typeable)
@@ -82,12 +82,16 @@ data FunctionCall a
 
 data FunctionArgs a
     = Args a [Expression a]
-    | ArgsTable a [Field a]
+    | ArgsTable a (TableConstructor a)
     | ArgsString a String
     deriving (Data, Functor, Show, Typeable)
 
 data FunctionBody a
     = FunctionBody a [Ident a] (Maybe a) (Block a)
+    deriving (Data, Functor, Show, Typeable)
+
+data TableConstructor a
+    = TableConstructor a [Field a]
     deriving (Data, Functor, Show, Typeable)
 
 data Field a
@@ -191,29 +195,29 @@ instance Annotated Variable where
 instance Annotated Expression where
     ann = lens f g
       where
-        f (Nil a)                = a
-        f (Bool a _)             = a
-        f (Integer a _)          = a
-        f (Float a _)            = a
-        f (String a _)           = a
-        f (Vararg a)             = a
-        f (FunDef a _)           = a
-        f (PrefixExp a _)        = a
-        f (TableConstructor a _) = a
-        f (Binop a _ _ _)        = a
-        f (Unop a _ _)           = a
+        f (Nil a)         = a
+        f (Bool a _)      = a
+        f (Integer a _)   = a
+        f (Float a _)     = a
+        f (String a _)    = a
+        f (Vararg a)      = a
+        f (FunDef a _)    = a
+        f (PrefixExp a _) = a
+        f (TableCtor a _) = a
+        f (Binop a _ _ _) = a
+        f (Unop a _ _)    = a
 
-        g (Nil _)                a = Nil a
-        g (Bool _ b)             a = Bool a b
-        g (Integer _ b)          a = Integer a b
-        g (Float _ b)            a = Float a b
-        g (String _ b)           a = String a b
-        g (Vararg _)             a = Vararg a
-        g (FunDef _ b)           a = FunDef a b
-        g (PrefixExp _ b)        a = PrefixExp a b
-        g (TableConstructor _ b) a = TableConstructor a b
-        g (Binop _ b c d)        a = Binop a b c d
-        g (Unop _ b c)           a = Unop a b c
+        g (Nil _)         a = Nil a
+        g (Bool _ b)      a = Bool a b
+        g (Integer _ b)   a = Integer a b
+        g (Float _ b)     a = Float a b
+        g (String _ b)    a = String a b
+        g (Vararg _)      a = Vararg a
+        g (FunDef _ b)    a = FunDef a b
+        g (PrefixExp _ b) a = PrefixExp a b
+        g (TableCtor _ b) a = TableCtor a b
+        g (Binop _ b c d) a = Binop a b c d
+        g (Unop _ b c)    a = Unop a b c
 
 instance Annotated PrefixExpression where
     ann = lens f g
@@ -248,6 +252,9 @@ instance Annotated FunctionArgs where
 
 instance Annotated FunctionBody where
     ann = lens (\(FunctionBody a _ _ _) -> a) (\(FunctionBody _ b c d) a -> FunctionBody a b c d)
+
+instance Annotated TableConstructor where
+    ann = lens (\(TableConstructor a _) -> a) (\(TableConstructor _ b) a -> TableConstructor a b)
 
 instance Annotated Field where
     ann = lens f g
