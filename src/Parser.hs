@@ -8,17 +8,16 @@ import Internal
 import Syntax
 import Token
 
-import Control.Applicative
-import Data.List.NonEmpty  (NonEmpty((:|)))
-import qualified Data.List.NonEmpty as NE
-import Data.Loc
-import Data.Maybe          (fromMaybe)
-import Data.Monoid
-import Lens.Micro
-import Prelude             hiding (break, repeat, until)
-import Text.Earley
-import Text.Earley.Mixfix
-import Text.Printf         (printf)
+import           Control.Applicative
+import           Data.List.NonEmpty  (NonEmpty((:|)))
+import qualified Data.List.NonEmpty  as NE
+import           Data.Loc
+import           Data.Monoid
+import           Lens.Micro
+import           Prelude             hiding (break, repeat, until)
+import           Text.Earley
+import           Text.Earley.Mixfix
+import           Text.Printf         (printf)
 
 type P r a = Prod r String (L Token) a
 type G r a = Grammar r String (P r a)
@@ -180,21 +179,19 @@ grammar = mdo
         <|> (\(L loc a) -> ArgsString loc a) <$> stringLit
 
     functionBody :: P r (FunctionBody Loc) <- rule $
-        (\a (b,c) d e -> FunctionBody (locOf a <> locOf e) b c d)
+            (\a b c d e -> FunctionBody (locOf a <> locOf e) b c d)
             <$> lparen
-            <*> (fromMaybe ([], Nothing) <$> optional parList)
+            <*> nameList1
+            <*> (True <$ comma <* tripleDot <|> pure False)
             <*  rparen
             <*> block
             <*> end
-
-    parList :: P r ([Ident Loc], Maybe Loc) <- rule $
-        let withNames = (,)
-                <$> (NE.toList <$> nameList1)
-                <*> optional ((\a b -> locOf a <> locOf b) <$> comma <*> tripleDot)
-
-            withoutNames = ([],) . Just . locOf <$> tripleDot
-
-        in withNames <|> withoutNames
+        <|> (\a b c -> FunctionBodyVararg (locOf a <> locOf c) b)
+            <$> lparen
+            <*  tripleDot
+            <*  rparen
+            <*> block
+            <*> end
 
     tableConstructor :: P r (TableConstructor Loc) <-
         let sep = comma <|> semi

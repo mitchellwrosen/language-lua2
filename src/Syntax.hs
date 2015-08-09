@@ -87,7 +87,8 @@ data FunctionArgs a
     deriving (Data, Functor, Show, Typeable)
 
 data FunctionBody a
-    = FunctionBody a [Ident a] (Maybe a) (Block a)
+    = FunctionBody a (NonEmpty (Ident a)) Bool (Block a) -- ^ @(arg1 {, arg2} [, ...]) block end@
+    | FunctionBodyVararg a (Block a)                     -- ^ @(...) block end@
     deriving (Data, Functor, Show, Typeable)
 
 data TableConstructor a
@@ -251,7 +252,13 @@ instance Annotated FunctionArgs where
         g (ArgsString _ b) a = ArgsString a b
 
 instance Annotated FunctionBody where
-    ann = lens (\(FunctionBody a _ _ _) -> a) (\(FunctionBody _ b c d) a -> FunctionBody a b c d)
+    ann = lens f g
+      where
+        f (FunctionBody a _ _ _)   = a
+        f (FunctionBodyVararg a _) = a
+
+        g (FunctionBody _ b c d)   a = FunctionBody a b c d
+        g (FunctionBodyVararg _ b) a = FunctionBodyVararg a b
 
 instance Annotated TableConstructor where
     ann = lens (\(TableConstructor a _) -> a) (\(TableConstructor _ b) a -> TableConstructor a b)
