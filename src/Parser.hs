@@ -20,14 +20,15 @@ import Text.Earley.Mixfix
 import Text.Printf         (printf)
 
 type P r a = Prod r String (L Token) a
+type G r a = Grammar r String (P r a)
 
-blockGrammar :: Grammar r String (P r (Block SrcLoc))
+blockGrammar :: G r (Block SrcLoc)
 blockGrammar = (\(a,_,_) -> a) <$> grammar
 
-statementGrammar :: Grammar r String (P r (Statement SrcLoc))
+statementGrammar :: G r (Statement SrcLoc)
 statementGrammar = (\(_,b,_) -> b) <$> grammar
 
-expressionGrammar :: Grammar r String (P r (Expression SrcLoc))
+expressionGrammar :: G r (Expression SrcLoc)
 expressionGrammar = (\(_,_,c) -> c) <$> grammar
 
 grammar :: Grammar r String (P r (Block SrcLoc), P r (Statement SrcLoc), P r (Expression SrcLoc))
@@ -37,7 +38,8 @@ grammar = mdo
             <$> many statement
             <*> optional returnStatement
 
-    statement :: P r (Statement Loc) <- rule $
+    statement :: P r (Statement Loc) <-
+        sepBy ident dot >>= \identSepByDot -> rule $
             EmptyStmt . locOf <$> semi
         <|> (\a b -> Assign (annF a <> annF b) a b)
             <$> varList1
@@ -100,7 +102,7 @@ grammar = mdo
         <|> (\a b c d e -> FunAssign (locOf a <> e^.ann) b c d e)
             <$> function
             <*> ident
-            <*> ident `sepBy` dot
+            <*> identSepByDot
             <*> optional (colon *> ident)
             <*> functionBody
         <|> (\a b c -> LocalFunAssign (locOf a <> c^.ann) b c)
@@ -119,7 +121,7 @@ grammar = mdo
             <*> expressionList
             <*> optional semi
 
-    varList1 :: P r [Variable Loc] <- rule $
+    varList1 :: P r [Variable Loc] <-
         var `sepBy1` comma
 
     var :: P r (Variable Loc) <- rule $
@@ -135,10 +137,13 @@ grammar = mdo
             <*  dot
             <*> ident
 
-    expressionList :: P r [Expression Loc] <- rule $
+    nameList1 :: P r [Ident Loc] <-
+        ident `sepBy` comma
+
+    expressionList :: P r [Expression Loc] <-
         expression `sepBy` comma
 
-    expressionList1 :: P r [Expression Loc] <- rule $
+    expressionList1 :: P r [Expression Loc] <-
         expression `sepBy1` comma
 
     expression :: P r (Expression Loc) <-
@@ -187,11 +192,21 @@ grammar = mdo
             <*> block
             <*> end
 
-    tableConstructor :: P r (L [Field Loc]) <- rule $
+    parList :: P r ([Ident Loc], Maybe Loc) <- rule $
+        let withNames = (,)
+                <$> nameList1
+                <*> optional ((\a b -> locOf a <> locOf b) <$> comma <*> tripleDot)
+
+            withoutNames = ([],) . Just . locOf <$> tripleDot
+
+        in withNames <|> withoutNames
+
+    tableConstructor :: P r (L [Field Loc]) <-
         let sep = comma <|> semi
-        in (\a b c -> L (locOf a <> locOf c) b)
+        in sepBy field sep >>= \fields -> rule $
+            (\a b c -> L (locOf a <> locOf c) b)
             <$> lbrace
-            <*> sepBy field sep
+            <*> fields
             <*  optional sep
             <*> rbrace
 
@@ -250,6 +265,12 @@ grammar = mdo
 
         , [ (binop TkCarrot       "^",   RightAssoc) ]
         ]
+      where
+        binop :: Token -> String -> [Maybe (P r (L Token))]
+        binop tk s = [Nothing, Just (locSymbol tk <?> s), Nothing]
+
+        unop :: Token -> String -> ([Maybe (P r (L Token))], Associativity)
+        unop tk s = ([Just (locSymbol tk <?> s), Nothing], RightAssoc)
 
     combineMixfix :: [Maybe (L Token)] -> [Expression Loc] -> Expression Loc
     combineMixfix (viewBinop -> Just tk) [e1, e2] = Binop (e1^.ann <> e2^.ann) (tk2binop tk) e1 e2
@@ -299,36 +320,15 @@ annF :: (Foldable t, Monoid m, Annotated ast) => t (ast m) -> m
 annF = foldMap (^. ann)
 
 --------------------------------------------------------------------------------
--- Non-recursive non-terminals
-
-nameList1 :: P r [Ident Loc]
-nameList1 = ident `sepBy` comma
-
-parList :: P r ([Ident Loc], Maybe Loc)
-parList = withNames <|> withoutNames
-  where
-    withNames :: P r ([Ident Loc], Maybe Loc)
-    withNames = (,)
-        <$> nameList1
-        <*> optional ((\a b -> locOf a <> locOf b) <$> comma <*> tripleDot)
-
-    withoutNames :: P r ([Ident Loc], Maybe Loc)
-    withoutNames = ([],) . Just . locOf <$> tripleDot
-
-binop :: Token -> String -> [Maybe (P r (L Token))]
-binop tk s = [Nothing, Just (locSymbol tk <?> s), Nothing]
-
-unop :: Token -> String -> ([Maybe (P r (L Token))], Associativity)
-unop tk s = ([Just (locSymbol tk <?> s), Nothing], RightAssoc)
-
---------------------------------------------------------------------------------
 -- Combinators
 
-sepBy :: Alternative f => f a -> f sep -> f [a]
-sepBy f sep = sepBy1 f sep <|> pure []
+sepBy :: Prod r e t a -> Prod r e t sep -> Grammar r e (Prod r e t [a])
+sepBy f sep = (<|> pure []) <$> sepBy1 f sep
 
-sepBy1 :: Alternative f => f a -> f sep -> f [a]
-sepBy1 f sep = (:) <$> f <*> many (sep *> f)
+sepBy1 :: Prod r e t a -> Prod r e t sep -> Grammar r e (Prod r e t [a])
+sepBy1 f sep = mdo
+    fs <- rule $ liftA3 (const (:)) sep f fs <|> pure []
+    rule $ liftA2 (:) f fs
 
 --------------------------------------------------------------------------------
 -- Token productions
