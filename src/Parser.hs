@@ -126,7 +126,7 @@ grammar = mdo
 
     var :: P r (Variable Loc) <- rule $
             (\a -> VarIdent (a^.ann) a)
-                <$> ident
+            <$> ident
         <|> (\a b c -> VarField (a^.ann <> locOf c) a b)
             <$> prefixExpression
             <*  lbracket
@@ -168,7 +168,7 @@ grammar = mdo
                         Nothing -> FunctionCall (a^.ann <> c^.ann) a c
                         Just b  -> MethodCall (a^.ann <> c^.ann) a b c)
             <$> prefixExpression
-            <*> optional (comma *> ident)
+            <*> optional (colon *> ident)
             <*> functionArgs
 
     functionArgs :: P r (FunctionArgs Loc) <- rule $
@@ -179,7 +179,7 @@ grammar = mdo
         <|> (\(L loc a) -> ArgsTable loc a) <$> tableConstructor
         <|> (\(L loc a) -> ArgsString loc a) <$> stringLit
 
-    functionBody :: P r (FunctionBody Loc) <- rule $ -- ([Ident Loc], Bool, Block Loc, L Token) <- rule $
+    functionBody :: P r (FunctionBody Loc) <- rule $
         (\a (b,c) d e -> FunctionBody (locOf a <> locOf e) b c d)
             <$> lparen
             <*> (fromMaybe ([], Nothing) <$> optional parList)
