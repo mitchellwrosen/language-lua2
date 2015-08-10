@@ -58,33 +58,24 @@ executable parse
                       , Earley
                       , lexer-applicative
                       , lua-parser
+                      , optparse-applicative
                       , srcloc
+                      , wl-pprint
   default-language:     Haskell2010
+  ghc-options:          -Wall
 
-executable interactive-lexer
+executable lex
   if !flag(exes)
     buildable: False
 
   hs-source-dirs:       app
-  main-is:              InteractiveLexer.hs
+  main-is:              Lex.hs
   build-depends:        base
                       , lexer-applicative
                       , lua-parser
                       , srcloc
   default-language:     Haskell2010
-
-executable interactive-parser
-  if !flag(exes)
-    buildable: False
-
-  hs-source-dirs:       app
-  main-is:              InteractiveParser.hs
-  build-depends:        base
-                      , Earley
-                      , lexer-applicative
-                      , lua-parser
-                      , srcloc
-  default-language:     Haskell2010
+  ghc-options:          -Wall
 
 test-suite lua-parser-test
   type:                 exitcode-stdio-1.0
