@@ -1,4 +1,4 @@
-module Parser
+module Language.Lua.Parser
     ( luaBlock
     , luaExpression
     , luaStatement
@@ -12,9 +12,9 @@ module Parser
     , report
     ) where
 
-import Internal
-import Syntax
-import Token
+import Language.Lua.Internal
+import Language.Lua.Syntax
+import Language.Lua.Token
 
 import           Control.Applicative
 import           Data.List.NonEmpty  (NonEmpty((:|)))

@@ -4,17 +4,15 @@
 
 module Main where
 
-import Lexer
-import Parser
-import Token
+import Language.Lua.Lexer
+import Language.Lua.Parser
+import Language.Lua.Token
 
 import Control.Monad
 import Data.Loc
-import Language.Lexer.Applicative
 import Options.Applicative
-import System.IO                  (stdout)
 import Text.Earley
-import Text.PrettyPrint.Leijen    (Pretty(..), displayIO, renderPretty)
+import Text.PrettyPrint.Leijen    (Pretty(..), displayS, renderPretty)
 
 data GrammarMode = BlockMode | StatementMode | ExpressionMode
     deriving Show
@@ -66,7 +64,7 @@ main' Opts{..} =
       where
         f :: ([a], Report String [L Token]) -> IO ()
         f ([x], _) = if optsPretty
-                         then displayIO stdout (renderPretty 1.0 80 (pretty x))
+                         then putStrLn $ displayS (renderPretty 1.0 80 (pretty x)) ""
                          else print x
         f ([], r)  = putStrLn ("Parse error: " ++ show r)
         f (xs, r)  = do

@@ -1,4 +1,4 @@
-module Lexer
+module Language.Lua.Lexer
     ( luaLexer
 
     -- * Re-exports
@@ -9,7 +9,7 @@ module Lexer
     , streamToEitherList
     ) where
 
-import Token
+import Language.Lua.Token
 
 import           Data.Char                  (chr, isDigit, isHexDigit, isSpace)
 import           Data.List                  (foldl')

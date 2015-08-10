@@ -1,8 +1,8 @@
-name:                   lua-parser
+name:                   language-lua
 version:                0.1.0.0
-synopsis:               Lua parser
-description:            Lua parser
-homepage:               http://github.com/mitchellwrosen/lua-parser
+synopsis:               Lua parser and pretty printer
+description:            Lua parser and pretty printer
+homepage:               http://github.com/mitchellwrosen/language-lua
 license:                BSD3
 license-file:           LICENSE
 author:                 Mitchell Rosen
@@ -19,12 +19,12 @@ Flag exes
 
 library
   hs-source-dirs:       src
-  exposed-modules:      Lexer
-                      , Parser
-                      , Pretty
-                      , Syntax
-                      , Token
-  other-modules:        Internal
+  exposed-modules:      Language.Lua.Lexer
+                      , Language.Lua.Parser
+                      , Language.Lua.Pretty
+                      , Language.Lua.Syntax
+                      , Language.Lua.Token
+  other-modules:        Language.Lua.Internal
   build-depends:        base >= 4.7 && < 5
                       , Earley
                       , lexer-applicative
@@ -58,7 +58,7 @@ executable parse
   build-depends:        base
                       , Earley
                       , lexer-applicative
-                      , lua-parser
+                      , language-lua
                       , optparse-applicative
                       , srcloc
                       , wl-pprint
@@ -73,19 +73,19 @@ executable lex
   main-is:              Lex.hs
   build-depends:        base
                       , lexer-applicative
-                      , lua-parser
+                      , language-lua
                       , srcloc
   default-language:     Haskell2010
   ghc-options:          -Wall
 
-test-suite lua-parser-test
+test-suite language-lua-test
   type:                 exitcode-stdio-1.0
   hs-source-dirs:       test
   main-is:              Spec.hs
   other-modules:        Instances
   build-depends:        base
                       , lexer-applicative
-                      , lua-parser
+                      , language-lua
                       , QuickCheck
                       , semigroups
                       , srcloc
@@ -99,4 +99,4 @@ test-suite lua-parser-test
 
 source-repository head
   type:     git
-  location: https://github.com/mitchellwrosen/lua-parser
+  location: https://github.com/mitchellwrosen/language-lua

@@ -1,6 +1,6 @@
 module Main where
 
-import Lexer
+import Language.Lua.Lexer
 
 import Control.Monad
 import Data.Loc

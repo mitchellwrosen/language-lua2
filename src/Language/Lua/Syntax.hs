@@ -1,7 +1,7 @@
 -- | Abstract syntax of Lua 5.3 source files. See
 -- <http://www.lua.org/manual/5.3/> for more information.
 
-module Syntax
+module Language.Lua.Syntax
     ( Annotated(..)
     , Chunk
     , Binop(..)
