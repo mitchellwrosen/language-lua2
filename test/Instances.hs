@@ -6,7 +6,7 @@ module Instances where
 import Syntax
 
 import           Control.Applicative
-import           Data.Char                  (isDigit, isAlpha)
+import           Data.Char                  (isAsciiLower, isAsciiUpper, isDigit)
 import           Data.HashSet               (HashSet)
 import qualified Data.HashSet               as HS
 import           Data.List.NonEmpty         (NonEmpty)
@@ -22,22 +22,24 @@ instance Arbitrary a => Arbitrary (Ident a) where
         genIdent = liftA2 (:) first rest `suchThat` \s -> not (HS.member s keywords)
           where
             first :: Gen Char
-            first = frequency [(5, pure '_'), (95, arbitrary `suchThat` isAlpha)]
+            first = frequency [(5, pure '_'), (95, arbitrary `suchThat` isAsciiLetter)]
 
             rest :: Gen String
             rest = listOf $
                 frequency [ (10, pure '_')
-                          , (45, arbitrary `suchThat` isAlpha)
+                          , (45, arbitrary `suchThat` isAsciiLetter)
                           , (45, arbitrary `suchThat` isDigit)
                           ]
+
+            -- Meh, forget unicode for now.
+            isAsciiLetter :: Char -> Bool
+            isAsciiLetter c = isAsciiLower c || isAsciiUpper c
 
         keywords :: HashSet String
         keywords = [ "and", "break", "do", "else", "elseif", "end", "false"
                    , "for", "function", "goto", "if", "in", "local", "nil"
                    , "not", "or", "repeat", "return", "then", "true", "until", "while"
                    ]
-
-    shrink = genericShrink
 
 instance Arbitrary a => Arbitrary (Block a) where
     arbitrary = Block <$> arbitrary <*> listOf1 arbitrary <*> arbitrary
