@@ -1,7 +1,15 @@
 module Parser
-    ( blockGrammar
-    , expressionGrammar
-    , statementGrammar
+    ( luaBlock
+    , luaExpression
+    , luaStatement
+
+    -- * Re-exports
+    , Report(..)
+    , Result(..)
+    , allParses
+    , fullParses
+    , parser
+    , report
     ) where
 
 import Internal
@@ -22,16 +30,16 @@ import           Text.Printf         (printf)
 type P r a = Prod r String (L Token) a
 type G r a = Grammar r String (P r a)
 
-blockGrammar :: G r (Block Loc)
-blockGrammar = (\(a,_,_) -> a) <$> grammar
+luaBlock :: G r (Block SrcLoc)
+luaBlock = (\(a,_,_) -> a) <$> grammar
 
-statementGrammar :: G r (Statement Loc)
-statementGrammar = (\(_,b,_) -> b) <$> grammar
+luaStatement :: G r (Statement SrcLoc)
+luaStatement = (\(_,b,_) -> b) <$> grammar
 
-expressionGrammar :: G r (Expression Loc)
-expressionGrammar = (\(_,_,c) -> c) <$> grammar
+luaExpression :: G r (Expression SrcLoc)
+luaExpression = (\(_,_,c) -> c) <$> grammar
 
-grammar :: Grammar r String (P r (Block Loc), P r (Statement Loc), P r (Expression Loc))
+grammar :: Grammar r String (P r (Block SrcLoc), P r (Statement SrcLoc), P r (Expression SrcLoc))
 grammar = mdo
     block :: P r (Block Loc) <- rule $
         (\a b -> Block (annF a <> annF b) a b)
@@ -215,7 +223,10 @@ grammar = mdo
             <*> expression
         <|> (\a -> Field (a^.ann) a) <$> expression
 
-    return (block, statement, expression)
+    return ( SrcLoc <$$> block
+           , SrcLoc <$$> statement
+           , SrcLoc <$$> expression
+           )
   where
     -- http://www.lua.org/manual/5.3/manual.html#3.4.8
     expressionTable :: [[([Maybe (P r (L Token))], Associativity)]]

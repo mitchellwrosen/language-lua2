@@ -1,4 +1,13 @@
-module Lexer (luaLexer) where
+module Lexer
+    ( luaLexer
+
+    -- * Re-exports
+    , LexicalError(..)
+    , TokenStream(..)
+    , runLexer
+    , streamToList
+    , streamToEitherList
+    ) where
 
 import Token
 

@@ -38,6 +38,7 @@ library
   default-language:     Haskell2010
   default-extensions:   DeriveDataTypeable
                       , DeriveFunctor
+                      , DeriveGeneric
                       , OverloadedLists
                       , OverloadedStrings
                       , ScopedTypeVariables
@@ -90,6 +91,7 @@ test-suite lua-parser-test
                       , srcloc
                       , tasty
                       , tasty-hunit
+                      , tasty-quickcheck
                       , unordered-containers
   ghc-options:          -Wall -threaded -rtsopts -with-rtsopts=-N
   default-extensions:   FlexibleInstances

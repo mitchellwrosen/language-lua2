@@ -22,6 +22,7 @@ module Syntax
 
 import Data.Data
 import Data.List.NonEmpty      (NonEmpty(..))
+import GHC.Generics            (Generic)
 import Lens.Micro
 import Prelude                 hiding ((<$>))
 import Text.PrettyPrint.Leijen
@@ -31,7 +32,7 @@ import Text.PrettyPrint.Leijen
 --
 -- <http://www.lua.org/manual/5.3/manual.html#3.1>
 data Ident a = Ident a String
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 -- | A chunk; Lua's compilation unit.
 --
@@ -42,7 +43,7 @@ type Chunk a = Block a
 --
 -- <http://www.lua.org/manual/5.3/manual.html#3.3.1>
 data Block a = Block a [Statement a] (Maybe (ReturnStatement a))
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Statement a
     = EmptyStmt a                                                -- ^ @;@
@@ -60,10 +61,10 @@ data Statement a
     | FunAssign a (NonEmpty (Ident a)) (Maybe (Ident a)) (FunctionBody a)
     | LocalFunAssign a (Ident a) (FunctionBody a)
     | LocalAssign a (NonEmpty (Ident a)) [Expression a]
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data ReturnStatement a = ReturnStatement a [Expression a]
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 -- | There are three kinds of variables in Lua: global variables, local variables, and table fields.
 --
@@ -72,7 +73,7 @@ data Variable a
     = VarIdent a (Ident a)                           -- ^ A local or global variable.
     | VarField a (PrefixExpression a) (Expression a) -- ^ @table[exp]@
     | VarFieldName a (PrefixExpression a) (Ident a)  -- ^ @table.field@
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Expression a
     = Nil a
@@ -86,39 +87,39 @@ data Expression a
     | TableCtor a (TableConstructor a)
     | Binop a (Binop a) (Expression a) (Expression a)
     | Unop a (Unop a) (Expression a)
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data PrefixExpression a
     = PrefixVar a (Variable a)
     | PrefixFunCall a (FunctionCall a)
     | Parens a (Expression a)
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data FunctionCall a
     = FunctionCall a (PrefixExpression a) (FunctionArgs a)
     | MethodCall a (PrefixExpression a) (Ident a) (FunctionArgs a)
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data FunctionArgs a
     = Args a [Expression a]
     | ArgsTable a (TableConstructor a)
     | ArgsString a String
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data FunctionBody a
     = FunctionBody a (NonEmpty (Ident a)) Bool (Block a) -- ^ @(arg1 {, arg2} [, ...]) block end@
     | FunctionBodyVararg a (Block a)                     -- ^ @(...) block end@
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data TableConstructor a
     = TableConstructor a [Field a]
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Field a
     = FieldExp a (Expression a) (Expression a) -- ^ @[exp1] = exp2@
     | FieldIdent a (Ident a) (Expression a)    -- ^ @name = exp@
     | Field a (Expression a)                   -- ^ @exp@
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Binop a
     = Plus a       -- ^ +
@@ -142,14 +143,14 @@ data Binop a
     | Neq a        -- ^ ~=
     | And a        -- ^ and
     | Or a         -- ^ or
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Unop a
     = Negate a     -- -
     | Not a        -- not
     | Length a     -- #
     | BitwiseNot a -- ~
-    deriving (Data, Functor, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 --------------------------------------------------------------------------------
 -- Pretty

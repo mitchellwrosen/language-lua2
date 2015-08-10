@@ -2,15 +2,22 @@ module Main where
 
 import Instances ()
 import Lexer
+import Parser
+import Pretty
+import Syntax
 import Token
 
-import Data.Loc
-import Language.Lexer.Applicative
-import Test.Tasty
-import Test.Tasty.HUnit
+import           Data.Loc
+import           Test.QuickCheck
+import           Test.Tasty
+import           Test.Tasty.HUnit
+import qualified Test.Tasty.QuickCheck       as QC
 
 main :: IO ()
-main = defaultMain $ testGroup "tests" [lexerTests]
+main = defaultMain $ testGroup "tests"
+    [ lexerTests
+    , parserTests
+    ]
 
 lexerTests :: TestTree
 lexerTests = testGroup "lexer tests"
@@ -21,12 +28,12 @@ lexerTests = testGroup "lexer tests"
   where
     stringLiteralTests :: TestTree
     stringLiteralTests = testCase "string literals" $ do
-        let expected = [TkStringLit "alo\n123\""]
-        l "\'alo\\\n123\"\'"        @?= expected
-        l "\"alo\\\n123\\\"\""      @?= expected
-        l "\'\\97lo\\10\\04923\"\'" @?= expected
-        l "[[alo\n123\"]]"          @?= expected
-        l "[==[\nalo\n123\"]==]"    @?= expected
+        let tk = [TkStringLit "alo\n123\""]
+        l "\'alo\\\n123\"\'"        @?= tk
+        l "\"alo\\\n123\\\"\""      @?= tk
+        l "\'\\97lo\\10\\04923\"\'" @?= tk
+        l "[[alo\n123\"]]"          @?= tk
+        l "[==[\nalo\n123\"]==]"    @?= tk
 
     intLiteralTests :: TestTree
     intLiteralTests = testCase "int literals" $ do
@@ -49,3 +56,15 @@ lexerTests = testGroup "lexer tests"
 
     l :: String -> [Token]
     l = map unLoc . streamToList . runLexer luaLexer ""
+
+parserTests :: TestTree
+parserTests = QC.testProperty "Pretty-printer round-trip" (\luaAst -> luaFromString (luaToString luaAst) == Just luaAst)
+
+luaToString :: Chunk SrcLoc -> String
+luaToString c = displayS (renderPretty 1.0 80 (pretty c)) ""
+
+luaFromString :: String -> Maybe (Chunk SrcLoc)
+luaFromString s = either (const Nothing) Just (streamToEitherList (runLexer luaLexer "" s)) >>= \tks ->
+    case fullParses (parser luaBlock tks) of
+        ([c], _) -> Just c
+        _        -> Nothing

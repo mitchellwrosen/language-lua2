@@ -51,12 +51,12 @@ main = execParser opts >>= main'
 main' :: Opts -> IO ()
 main' Opts{..} =
     case optsFile of
-        Just file -> readFile file >>= go blockGrammar file
+        Just file -> readFile file >>= go luaBlock file
         Nothing ->
             case optsInteractive of
-                BlockMode      -> forever $ getLine >>= go blockGrammar      "<stdin>"
-                StatementMode  -> forever $ getLine >>= go statementGrammar  "<stdin>"
-                ExpressionMode -> forever $ getLine >>= go expressionGrammar "<stdin>"
+                BlockMode      -> forever $ getLine >>= go luaBlock      "<stdin>"
+                StatementMode  -> forever $ getLine >>= go luaStatement  "<stdin>"
+                ExpressionMode -> forever $ getLine >>= go luaExpression "<stdin>"
   where
     go :: forall a. (Show a, Pretty a) => (forall r. Grammar r String (Prod r String (L Token) a)) -> String -> String -> IO ()
     go g filename =

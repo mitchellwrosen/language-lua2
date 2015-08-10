@@ -37,8 +37,11 @@ instance Arbitrary a => Arbitrary (Ident a) where
                    , "not", "or", "repeat", "return", "then", "true", "until", "while"
                    ]
 
+    shrink = genericShrink
+
 instance Arbitrary a => Arbitrary (Block a) where
     arbitrary = Block <$> arbitrary <*> listOf1 arbitrary <*> arbitrary
+    shrink = genericShrink
 
 instance Arbitrary a => Arbitrary (Statement a) where
     arbitrary = oneof
@@ -59,8 +62,12 @@ instance Arbitrary a => Arbitrary (Statement a) where
         , LocalAssign    <$> arbitrary <*> arbitrary <*> arbitrary
         ]
 
+    shrink = genericShrink
+
 instance Arbitrary a => Arbitrary (ReturnStatement a) where
     arbitrary = ReturnStatement <$> arbitrary <*> arbitrary
+    shrink = genericShrink
+
 
 instance Arbitrary a => Arbitrary (Variable a) where
     arbitrary = oneof
@@ -68,6 +75,8 @@ instance Arbitrary a => Arbitrary (Variable a) where
         , VarField     <$> arbitrary <*> arbitrary <*> arbitrary
         , VarFieldName <$> arbitrary <*> arbitrary <*> arbitrary
         ]
+
+    shrink = genericShrink
 
 instance Arbitrary a => Arbitrary (Expression a) where
     arbitrary = oneof
@@ -84,6 +93,8 @@ instance Arbitrary a => Arbitrary (Expression a) where
         , Unop      <$> arbitrary <*> arbitrary <*> arbitrary
         ]
 
+    shrink = genericShrink
+
 instance Arbitrary a => Arbitrary (PrefixExpression a) where
     arbitrary = oneof
         [ PrefixVar     <$> arbitrary <*> arbitrary
@@ -91,11 +102,15 @@ instance Arbitrary a => Arbitrary (PrefixExpression a) where
         , Parens        <$> arbitrary <*> arbitrary
         ]
 
+    shrink = genericShrink
+
 instance Arbitrary a => Arbitrary (FunctionCall a) where
     arbitrary = oneof
         [ FunctionCall <$> arbitrary <*> arbitrary <*> arbitrary
         , MethodCall   <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
         ]
+
+    shrink = genericShrink
 
 instance Arbitrary a => Arbitrary (FunctionArgs a) where
     arbitrary = oneof
@@ -104,11 +119,15 @@ instance Arbitrary a => Arbitrary (FunctionArgs a) where
         , ArgsString <$> arbitrary <*> arbitrary
         ]
 
+    shrink = genericShrink
+
 instance Arbitrary a => Arbitrary (FunctionBody a) where
     arbitrary = FunctionBody <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+    shrink = genericShrink
 
 instance Arbitrary a => Arbitrary (TableConstructor a) where
     arbitrary = TableConstructor <$> arbitrary <*> arbitrary
+    shrink = genericShrink
 
 instance Arbitrary a => Arbitrary (Field a) where
     arbitrary = oneof
@@ -116,6 +135,8 @@ instance Arbitrary a => Arbitrary (Field a) where
         , FieldIdent <$> arbitrary <*> arbitrary <*> arbitrary
         , Field      <$> arbitrary <*> arbitrary
         ]
+
+    shrink = genericShrink
 
 instance Arbitrary a => Arbitrary (Binop a) where
     arbitrary = oneof
@@ -142,6 +163,8 @@ instance Arbitrary a => Arbitrary (Binop a) where
         , Or         <$> arbitrary
         ]
 
+    shrink = genericShrink
+
 instance Arbitrary a => Arbitrary (Unop a) where
     arbitrary = oneof
         [ Negate     <$> arbitrary
@@ -150,10 +173,12 @@ instance Arbitrary a => Arbitrary (Unop a) where
         , BitwiseNot <$> arbitrary
         ]
 
+    shrink = genericShrink
+
 -- Orphans
 
-instance Arbitrary Loc where
-    arbitrary = pure NoLoc
+instance Arbitrary SrcLoc where
+    arbitrary = pure (SrcLoc NoLoc)
 
 instance Arbitrary a => Arbitrary (NonEmpty a) where
     arbitrary = NE.fromList <$> listOf1 arbitrary
