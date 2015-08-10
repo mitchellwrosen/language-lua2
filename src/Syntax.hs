@@ -1,11 +1,30 @@
 -- | Abstract syntax of Lua 5.3 source files. See
 -- <http://www.lua.org/manual/5.3/> for more information.
 
-module Syntax where
+module Syntax
+    ( Annotated(..)
+    , Chunk
+    , Binop(..)
+    , Block(..)
+    , Expression(..)
+    , Field(..)
+    , FunctionArgs(..)
+    , FunctionBody(..)
+    , FunctionCall(..)
+    , Ident(..)
+    , PrefixExpression(..)
+    , ReturnStatement(..)
+    , Statement(..)
+    , TableConstructor(..)
+    , Unop(..)
+    , Variable(..)
+    ) where
 
 import Data.Data
-import Data.List.NonEmpty (NonEmpty(..))
+import Data.List.NonEmpty      (NonEmpty(..))
 import Lens.Micro
+import Prelude                 hiding ((<$>))
+import Text.PrettyPrint.Leijen
 
 -- | An identifier, defined as any string of letters, digits, or underscores,
 -- not beginning with a digit.
@@ -131,6 +150,161 @@ data Unop a
     | Length a     -- #
     | BitwiseNot a -- ~
     deriving (Data, Functor, Show, Typeable)
+
+--------------------------------------------------------------------------------
+-- Pretty
+
+instance Pretty (Ident a) where
+    pretty (Ident _ s) = text s
+
+instance Pretty (Block a) where
+    pretty (Block _ ss mr) =
+            vsep (map pretty ss)
+        <$> maybe empty pretty mr
+
+instance Pretty (Statement a) where
+    pretty (EmptyStmt _) = char ';'
+    pretty (Assign _ (v:|vs) (e:|es)) =
+            sepBy (text ", ") (v:vs)
+        <+> char '='
+        <+> sepBy (text ", ") (e:es)
+    pretty (FunCall _ f) = pretty f
+    pretty (Label _ i) = text "::" <> pretty i <> text "::"
+    pretty (Break _) = text "break"
+    pretty (Goto _ i) = text "goto" <+> pretty i
+    pretty (Do _ b) =
+            text "do"
+        <$> indent 4 (pretty b)
+        <$> text "end"
+    pretty (While _ e b) =
+            text "while" <+> pretty e <+> text "do"
+        <$> nest 4 (pretty b)
+        <$> text "end"
+    pretty (Repeat _ b e) =
+            text "repeat"
+        <$> nest 4 (pretty b)
+        <$> text "until" <+> pretty e
+    pretty (If _ ((e,b):|es) mb'') =
+            text "if" <+> pretty e <+> text "then"
+        <$> indent 4 (pretty b)
+        <$> vsep (map (\(e',b') -> text "elseif" <+> pretty e' <+> text "then"
+                                   <$> indent 4 (pretty b')) es)
+        <$> maybe empty (\b'' -> text "else"
+                                 <$> indent 4 (pretty b'')) mb''
+        <$> text "end"
+    pretty (For _ i e1 e2 me3 b) =
+            text "for" <+> pretty i <+> char '=' <+> pretty e1 <> char ',' <+> pretty e2 <> maybe empty ((char ',' <+>) . pretty) me3 <+> text "do"
+        <$> indent 4 (pretty b)
+        <$> text "end"
+    pretty (ForIn _ (i:|is) (e:|es) b) =
+            text "for" <+> sepBy (text ", ") (i:is) <+> text "in" <+> sepBy (text ", ") (e:es) <+> text "do"
+        <$> indent 4 (pretty b)
+        <$> text "end"
+    pretty (FunAssign _ (i:|is) mi b) =
+            text "function" <+> sepBy (char '.') (i:is) <> maybe empty ((char ':' <>) . pretty) mi <> pretty b
+    pretty (LocalFunAssign _ i b) =
+            text "local" <+> text "function" <+> pretty i <> pretty b
+    pretty (LocalAssign _ (i:|is) es) =
+            text "local"
+        <+> sepBy (text ", ") (i:is)
+        <+> case es of
+                [] -> empty
+                _  -> char '=' <+> sepBy (text ", ") es
+
+instance Pretty (ReturnStatement a) where
+    pretty (ReturnStatement _ es) = text "return" <+> sepBy (text ", ") es
+
+instance Pretty (Variable a) where
+    pretty (VarIdent _ i)       = pretty i
+    pretty (VarField _ e1 e2)   = pretty e1 <> brackets (pretty e2)
+    pretty (VarFieldName _ e i) = pretty e <> char '.' <> pretty i
+
+instance Pretty (Expression a) where
+    pretty (Nil _)            = text "nil"
+    pretty (Bool _ True)      = text "true"
+    pretty (Bool _ _)         = text "false"
+    pretty (Integer _ s)      = text s
+    pretty (Float _ s)        = text s
+    pretty (String _ s)       = dquotes (string s)
+    pretty (Vararg _)         = text "..."
+    pretty (FunDef _ b)       = text "function" <> pretty b
+    pretty (PrefixExp _ e)    = pretty e
+    pretty (TableCtor _ t)    = pretty t
+    pretty (Binop _ op e1 e2) = pretty e1 <+> pretty op <+> pretty e2
+    pretty (Unop _ op e)      = pretty op <> pretty e
+
+instance Pretty (PrefixExpression a) where
+    pretty (PrefixVar _ v)     = pretty v
+    pretty (PrefixFunCall _ c) = pretty c
+    pretty (Parens _ e)        = parens (pretty e)
+
+instance Pretty (FunctionCall a) where
+    pretty (FunctionCall _ e a) = pretty e <> pretty a
+    pretty (MethodCall _ e i a) = pretty e <> char ':' <> pretty i <> pretty a
+
+instance Pretty (FunctionArgs a) where
+    pretty (Args _ es)      = encloseSep lparen rparen (text ", ") (map pretty es)
+    pretty (ArgsTable _ t)  = pretty t
+    pretty (ArgsString _ s) = dquotes (string s)
+
+instance Pretty (FunctionBody a) where
+    pretty (FunctionBody _ (i:|is) va b) =
+            encloseSep lparen rhs (text ", ") (map pretty (i:is))
+        <$> indent 4 (pretty b)
+        <$> text "end"
+      where
+        rhs = if va
+                  then comma <+> text "..." <> rparen
+                  else rparen
+    pretty (FunctionBodyVararg _ b) =
+            text "(...)"
+        <$> indent 4 (pretty b)
+        <$> text "end"
+
+instance Pretty (TableConstructor a) where
+    pretty (TableConstructor _ []) = lbrace <+> rbrace
+    pretty (TableConstructor _ [f]) = lbrace <+> pretty f <+> rbrace
+    pretty (TableConstructor _ fs) =
+            lbrace
+        <$> indent 4 (vsep (map pretty fs))
+        <$> rbrace
+
+instance Pretty (Field a) where
+    pretty (FieldExp _ e1 e2) = brackets (pretty e1) <+> char '=' <+> pretty e2
+    pretty (FieldIdent _ i e) = pretty i <+> char '=' <+> pretty e
+    pretty (Field _ e)        = pretty e
+
+instance Pretty (Binop a) where
+    pretty (Plus _)       = char '+'
+    pretty (Minus _)      = char '-'
+    pretty (Mult _)       = char '*'
+    pretty (FloatDiv _)   = char '/'
+    pretty (FloorDiv _)   = text "//"
+    pretty (Exponent _)   = char '^'
+    pretty (Modulo _)     = char '%'
+    pretty (BitwiseAnd _) = char '&'
+    pretty (BitwiseXor _) = char '~'
+    pretty (BitwiseOr _)  = char '|'
+    pretty (Rshift _)     = text ">>"
+    pretty (Lshift _)     = text "<<"
+    pretty (Concat _)     = text ".."
+    pretty (Lt _)         = text "<"
+    pretty (Leq _)        = text "<="
+    pretty (Gt _)         = text ">"
+    pretty (Geq _)        = text ">="
+    pretty (Eq _)         = text "=="
+    pretty (Neq _)        = text "~="
+    pretty (And _)        = text "and"
+    pretty (Or _)         = text "or"
+
+instance Pretty (Unop a) where
+    pretty (Negate _)     = char '-'
+    pretty (Not _)        = text "not"
+    pretty (Length _)     = char '#'
+    pretty (BitwiseNot _) = char '~'
+
+sepBy :: Pretty a => Doc -> [a] -> Doc
+sepBy d = align . cat . punctuate d . map pretty
 
 --------------------------------------------------------------------------------
 -- Annotated
