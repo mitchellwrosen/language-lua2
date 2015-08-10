@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Instances where
 
@@ -70,17 +71,17 @@ instance Arbitrary a => Arbitrary (Variable a) where
 
 instance Arbitrary a => Arbitrary (Expression a) where
     arbitrary = oneof
-        [ Nil              <$> arbitrary
-        , Bool             <$> arbitrary <*> arbitrary
-        , Integer          <$> arbitrary <*> (show <$> (arbitrary :: Gen Int)) -- TODO: Make these better
-        , Float            <$> arbitrary <*> (show <$> (arbitrary :: Gen Float))
-        , String           <$> arbitrary <*> arbitrary
-        , Vararg           <$> arbitrary
-        , FunDef           <$> arbitrary <*> arbitrary
-        , PrefixExp        <$> arbitrary <*> arbitrary
-        , TableConstructor <$> arbitrary <*> arbitrary
-        , Binop            <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-        , Unop             <$> arbitrary <*> arbitrary <*> arbitrary
+        [ Nil       <$> arbitrary
+        , Bool      <$> arbitrary <*> arbitrary
+        , Integer   <$> arbitrary <*> (show <$> (arbitrary :: Gen Int)) -- TODO: Make these better
+        , Float     <$> arbitrary <*> (show <$> (arbitrary :: Gen Float))
+        , String    <$> arbitrary <*> arbitrary
+        , Vararg    <$> arbitrary
+        , FunDef    <$> arbitrary <*> arbitrary
+        , PrefixExp <$> arbitrary <*> arbitrary
+        , TableCtor <$> arbitrary <*> arbitrary
+        , Binop     <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+        , Unop      <$> arbitrary <*> arbitrary <*> arbitrary
         ]
 
 instance Arbitrary a => Arbitrary (PrefixExpression a) where
@@ -105,6 +106,9 @@ instance Arbitrary a => Arbitrary (FunctionArgs a) where
 
 instance Arbitrary a => Arbitrary (FunctionBody a) where
     arbitrary = FunctionBody <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary a => Arbitrary (TableConstructor a) where
+    arbitrary = TableConstructor <$> arbitrary <*> arbitrary
 
 instance Arbitrary a => Arbitrary (Field a) where
     arbitrary = oneof
