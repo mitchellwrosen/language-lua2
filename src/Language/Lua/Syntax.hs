@@ -2,28 +2,31 @@
 -- <http://www.lua.org/manual/5.3/> for more information.
 
 module Language.Lua.Syntax
-    ( Annotated(..)
+    ( -- * AST nodes
+      Ident(..)
+    , IdentList1(..)
     , Chunk
-    , Binop(..)
     , Block(..)
+    , Statement(..)
+    , ReturnStatement(..)
+    , FunctionName(..)
+    , Variable(..)
+    , VariableList1(..)
     , Expression(..)
     , ExpressionList(..)
     , ExpressionList1(..)
-    , Field(..)
-    , FieldList(..)
+    , PrefixExpression(..)
+    , FunctionCall(..)
     , FunctionArgs(..)
     , FunctionBody(..)
-    , FunctionCall(..)
-    , FunctionName(..)
-    , Ident(..)
-    , IdentList1(..)
-    , PrefixExpression(..)
-    , ReturnStatement(..)
-    , Statement(..)
     , TableConstructor(..)
+    , Field(..)
+    , FieldList(..)
+    , Binop(..)
     , Unop(..)
-    , Variable(..)
-    , VariableList1(..)
+
+    -- * Annotated typeclass
+    , Annotated(..)
     ) where
 
 import Data.Data
@@ -41,6 +44,7 @@ data Ident a
     = Ident !a !String
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
+-- | One or more 'Ident's.
 data IdentList1 a
     = IdentList1 !a !(NonEmpty (Ident a))
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
@@ -57,45 +61,52 @@ data Block a
     = Block !a ![Statement a] !(Maybe (ReturnStatement a))
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
+-- | A statement.
+--
+-- <http://www.lua.org/manual/5.3/manual.html#3.3>
 data Statement a
-    = EmptyStmt      !a                                        -- ^ @;@
-    | Assign         !a !(VariableList1 a) !(ExpressionList1 a) -- ^ @var1, var2, var3 = exp1, exp2, exp3@
-    | FunCall        !a !(FunctionCall a)
-    | Label          !a !(Ident a)
-    | Break          !a
-    | Goto           !a !(Ident a)
-    | Do             !a !(Block a)
-    | While          !a !(Expression a) !(Block a)
-    | Repeat         !a !(Block a) !(Expression a)
-    | If             !a !(NonEmpty (Expression a, Block a)) !(Maybe (Block a))
-    | For            !a !(Ident a) !(Expression a) !(Expression a) !(Maybe (Expression a)) !(Block a)
-    | ForIn          !a !(IdentList1 a) !(ExpressionList1 a) !(Block a)
-    | FunAssign      !a !(FunctionName a) !(FunctionBody a)
-    | LocalFunAssign !a !(Ident a) !(FunctionBody a)
-    | LocalAssign    !a !(IdentList1 a) !(ExpressionList a)
+    = EmptyStmt      !a                                                                               -- ^ @;@
+    | Assign         !a !(VariableList1 a) !(ExpressionList1 a)                                       -- ^ @/var1/, /var2/, /var3/ = /exp1/, /exp2/, /exp3/@
+    | FunCall        !a !(FunctionCall a)                                                             -- ^ @foo.bar(/args/)@
+    | Label          !a !(Ident a)                                                                    -- ^ @::label::@
+    | Break          !a                                                                               -- ^ @__break__@
+    | Goto           !a !(Ident a)                                                                    -- ^ @__goto__ label@
+    | Do             !a !(Block a)                                                                    -- ^ @__do__ /block/@
+    | While          !a !(Expression a) !(Block a)                                                    -- ^ @__while__ /exp/ __do__ /block/ __end__@
+    | Repeat         !a !(Block a) !(Expression a)                                                    -- ^ @__repeat__ /block/ __until__ /exp/@
+    | If             !a !(NonEmpty (Expression a, Block a)) !(Maybe (Block a))                        -- ^ @__if__ /exp/ __then__ /block/ __else__ /block/ __end__@
+    | For            !a !(Ident a) !(Expression a) !(Expression a) !(Maybe (Expression a)) !(Block a) -- ^ @__for__ x = /exp/ __do__ /block/ __end__@
+    | ForIn          !a !(IdentList1 a) !(ExpressionList1 a) !(Block a)                               -- ^ @__for__ a, b, c __in__ /exp1/, /exp2/, /exp3/ __do__ /block/ __end__@
+    | FunAssign      !a !(FunctionName a) !(FunctionBody a)                                           -- ^ @__function__ name /body/@
+    | LocalFunAssign !a !(Ident a) !(FunctionBody a)                                                  -- ^ @__local function__ name /body/@
+    | LocalAssign    !a !(IdentList1 a) !(ExpressionList a)                                           -- ^ @__local__ x, y, z@
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data ReturnStatement a
-    = ReturnStatement !a !(ExpressionList a)
+    = ReturnStatement !a !(ExpressionList a) -- ^ @__return__ /exp1/, /exp2/@
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data FunctionName a
-    = FunctionName !a !(IdentList1 a) !(Maybe (Ident a))
+    = FunctionName !a !(IdentList1 a) !(Maybe (Ident a)) -- ^ @foo.bar:baz@
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
--- | There are three kinds of variables in Lua: global variables, local variables, and table fields.
+-- | A variable.
 --
 -- <http://www.lua.org/manual/5.3/manual.html#3.2>
 data Variable a
-    = VarIdent     !a !(Ident a)                            -- ^ A local or global variable.
-    | VarField     !a !(PrefixExpression a) !(Expression a) -- ^ @table[exp]@
-    | VarFieldName !a !(PrefixExpression a) !(Ident a)      -- ^ @table.field@
+    = VarIdent     !a !(Ident a)                            -- ^ @x@
+    | VarField     !a !(PrefixExpression a) !(Expression a) -- ^ @/table/[/exp/]@
+    | VarFieldName !a !(PrefixExpression a) !(Ident a)      -- ^ @/table/.field@
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
+-- | One or more 'Variable's.
 data VariableList1 a
     = VariableList1 !a !(NonEmpty (Variable a))
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
+-- | An expression.
+--
+-- <http://www.lua.org/manual/5.3/manual.html#3.4>
 data Expression a
     = Nil       !a
     | Bool      !a !Bool
@@ -110,10 +121,12 @@ data Expression a
     | Unop      !a !(Unop a) !(Expression a)
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
+-- | Zero or more 'Expression's.
 data ExpressionList a
     = ExpressionList !a ![Expression a]
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
+-- | One or more 'Expression's.
 data ExpressionList1 a
     = ExpressionList1 !a !(NonEmpty (Expression a))
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
@@ -124,40 +137,49 @@ data PrefixExpression a
     | Parens        !a !(Expression a)
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
+-- | A function call. May be a statement or an expression.
+--
+-- <http://www.lua.org/manual/5.3/manual.html#3.3.6>
+--
+-- <http://www.lua.org/manual/5.3/manual.html#3.4.10>
 data FunctionCall a
     = FunctionCall !a !(PrefixExpression a) !(FunctionArgs a)
     | MethodCall   !a !(PrefixExpression a) !(Ident a) !(FunctionArgs a)
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data FunctionArgs a
-    = Args       !a !(ExpressionList a)
-    | ArgsTable  !a !(TableConstructor a)
-    | ArgsString !a !String
+    = Args       !a !(ExpressionList a)   -- ^ @(/exp1/, /exp2/)@
+    | ArgsTable  !a !(TableConstructor a) -- ^ @{ x = /exp/ }@
+    | ArgsString !a !String               -- ^ @"str"@
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data FunctionBody a
-    = FunctionBody       !a !(IdentList1 a) !Bool !(Block a) -- ^ @(arg1 {, arg2} [, ...]) block end@
-    | FunctionBodyVararg !a !(Block a)                             -- ^ @(...) block end@
+    = FunctionBody !a !(IdentList1 a) !Bool !(Block a) -- ^ @(x, y, ...) /block/ __end__@
+    | FunctionBodyVararg !a !(Block a)                 -- ^ @(...) /block/ __end__@
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
+-- | A table constructor.
+--
+-- <http://www.lua.org/manual/5.3/manual.html#3.4.9>
 data TableConstructor a
-    = TableConstructor !a !(FieldList a)
+    = TableConstructor !a !(FieldList a) -- ^ @{ x = 5, [f(1)] = 6, 7 }@
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Field a
-    = FieldExp   !a !(Expression a) !(Expression a) -- ^ @[exp1] = exp2@
-    | FieldIdent !a !(Ident a) !(Expression a)      -- ^ @name = exp@
-    | Field      !a !(Expression a)                 -- ^ @exp@
+    = FieldExp   !a !(Expression a) !(Expression a) -- ^ @[/exp1/] = /exp2/@
+    | FieldIdent !a !(Ident a) !(Expression a)      -- ^ @name = /exp/@
+    | Field      !a !(Expression a)                 -- ^ @/exp/@
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
+-- | Zero or more 'Field's, separated by @,@ or @;@.
 data FieldList a
     = FieldList !a ![Field a]
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Binop a
     = Plus       !a -- ^ +
-    | Minus      !a -- ^ -
-    | Mult       !a -- ^ *
+    | Minus      !a -- ^ \-
+    | Mult       !a -- ^ \*
     | FloatDiv   !a -- ^ /
     | FloorDiv   !a -- ^ //
     | Exponent   !a -- ^ \^
@@ -165,13 +187,13 @@ data Binop a
     | BitwiseAnd !a -- ^ &
     | BitwiseXor !a -- ^ ~
     | BitwiseOr  !a -- ^ |
-    | Rshift     !a -- ^ >>
+    | Rshift     !a -- ^ \>\>
     | Lshift     !a -- ^ <<
     | Concat     !a -- ^ ..
     | Lt         !a -- ^ <
     | Leq        !a -- ^ <=
-    | Gt         !a -- ^ >
-    | Geq        !a -- ^ >=
+    | Gt         !a -- ^ \>
+    | Geq        !a -- ^ \>=
     | Eq         !a -- ^ ==
     | Neq        !a -- ^ ~=
     | And        !a -- ^ and
@@ -179,7 +201,7 @@ data Binop a
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Unop a
-    = Negate     !a -- ^ -
+    = Negate     !a -- ^ \-
     | Not        !a -- ^ not
     | Length     !a -- ^ #
     | BitwiseNot !a -- ^ ~

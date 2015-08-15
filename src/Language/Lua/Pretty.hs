@@ -1,6 +1,16 @@
+-- | Lua pretty-printing re-exports. All AST nodes are instances of 'Pretty';
+-- this module just re-exports types and top-level rendering functions from
+-- <https://hackage.haskell.org/package/wl-pprint wl-pprint>.
+
 module Language.Lua.Pretty
-    ( -- * Re-exports
-      module Text.PrettyPrint.Leijen
+    ( -- * <https://hackage.haskell.org/package/wl-pprint wl-pprint> re-exports
+      Doc
+    , Pretty(..)
+    , SimpleDoc(..)
+    , renderPretty
+    , renderCompact
+    , displayS
+    , displayIO
     ) where
 
-import Text.PrettyPrint.Leijen (Doc, Pretty(..), SimpleDoc(..), displayIO, displayS, renderPretty, renderCompact)
+import Text.PrettyPrint.Leijen

@@ -27,8 +27,8 @@ data Token
     | TkUntil            -- ^ until
     | TkWhile            -- ^ while
     | TkPlus             -- ^ +
-    | TkDash             -- ^ -
-    | TkStar             -- ^ *
+    | TkDash             -- ^ \-
+    | TkStar             -- ^ \*
     | TkFslash           -- ^ /
     | TkPct              -- ^ %
     | TkCarrot           -- ^ ^
@@ -37,14 +37,14 @@ data Token
     | TkTilde            -- ^ ~
     | TkPipe             -- ^ |
     | TkLShift           -- ^ <<
-    | TkRShift           -- ^ >>
+    | TkRShift           -- ^ \>\>
     | TkDoubleFslash     -- ^ //
     | TkDoubleEq         -- ^ ==
     | TkNeq              -- ^ ~=
     | TkLeq              -- ^ <=
-    | TkGeq              -- ^ >=
+    | TkGeq              -- ^ \>=
     | TkLt               -- ^ <
-    | TkGt               -- ^ >
+    | TkGt               -- ^ \>
     | TkEq               -- ^ =
     | TkLParen           -- ^ (
     | TkRParen           -- ^ )
