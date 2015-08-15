@@ -7,17 +7,23 @@ module Language.Lua.Syntax
     , Binop(..)
     , Block(..)
     , Expression(..)
+    , ExpressionList(..)
+    , ExpressionList1(..)
     , Field(..)
+    , FieldList(..)
     , FunctionArgs(..)
     , FunctionBody(..)
     , FunctionCall(..)
+    , FunctionName(..)
     , Ident(..)
+    , IdentList1(..)
     , PrefixExpression(..)
     , ReturnStatement(..)
     , Statement(..)
     , TableConstructor(..)
     , Unop(..)
     , Variable(..)
+    , VariableList1(..)
     ) where
 
 import Data.Data
@@ -31,125 +37,158 @@ import Text.PrettyPrint.Leijen
 -- not beginning with a digit.
 --
 -- <http://www.lua.org/manual/5.3/manual.html#3.1>
-data Ident a = Ident a String
+data Ident a
+    = Ident !a !String
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
+
+data IdentList1 a
+    = IdentList1 !a !(NonEmpty (Ident a))
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
+
+data IdentList a = IdentList a (NonEmpty (Ident a))
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 -- | A chunk; Lua's compilation unit.
 --
 -- <http://www.lua.org/manual/5.3/manual.html#3.3.2>
-type Chunk a = Block a
+type Chunk = Block
 
 -- | A block of statements, possibly ending in a return statement.
 --
 -- <http://www.lua.org/manual/5.3/manual.html#3.3.1>
-data Block a = Block a [Statement a] (Maybe (ReturnStatement a))
+data Block a
+    = Block !a ![Statement a] !(Maybe (ReturnStatement a))
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Statement a
-    = EmptyStmt a                                                -- ^ @;@
-    | Assign a (NonEmpty (Variable a)) (NonEmpty (Expression a)) -- ^ @var1, var2, var3 = exp1, exp2, exp3@
-    | FunCall a (FunctionCall a)
-    | Label a (Ident a)
-    | Break a
-    | Goto a (Ident a)
-    | Do a (Block a)
-    | While a (Expression a) (Block a)
-    | Repeat a (Block a) (Expression a)
-    | If a (NonEmpty (Expression a, Block a)) (Maybe (Block a))
-    | For a (Ident a) (Expression a) (Expression a) (Maybe (Expression a)) (Block a)
-    | ForIn a (NonEmpty (Ident a)) (NonEmpty (Expression a)) (Block a)
-    | FunAssign a (NonEmpty (Ident a)) (Maybe (Ident a)) (FunctionBody a)
-    | LocalFunAssign a (Ident a) (FunctionBody a)
-    | LocalAssign a (NonEmpty (Ident a)) [Expression a]
+    = EmptyStmt      !a                                        -- ^ @;@
+    | Assign         !a !(VariableList1 a) !(ExpressionList1 a) -- ^ @var1, var2, var3 = exp1, exp2, exp3@
+    | FunCall        !a !(FunctionCall a)
+    | Label          !a !(Ident a)
+    | Break          !a
+    | Goto           !a !(Ident a)
+    | Do             !a !(Block a)
+    | While          !a !(Expression a) !(Block a)
+    | Repeat         !a !(Block a) !(Expression a)
+    | If             !a !(NonEmpty (Expression a, Block a)) !(Maybe (Block a))
+    | For            !a !(Ident a) !(Expression a) !(Expression a) !(Maybe (Expression a)) !(Block a)
+    | ForIn          !a !(IdentList1 a) !(ExpressionList1 a) !(Block a)
+    | FunAssign      !a !(FunctionName a) !(FunctionBody a)
+    | LocalFunAssign !a !(Ident a) !(FunctionBody a)
+    | LocalAssign    !a !(IdentList1 a) !(ExpressionList a)
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
-data ReturnStatement a = ReturnStatement a [Expression a]
+data ReturnStatement a
+    = ReturnStatement !a !(ExpressionList a)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
+
+data FunctionName a
+    = FunctionName !a !(IdentList1 a) !(Maybe (Ident a))
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 -- | There are three kinds of variables in Lua: global variables, local variables, and table fields.
 --
 -- <http://www.lua.org/manual/5.3/manual.html#3.2>
 data Variable a
-    = VarIdent a (Ident a)                           -- ^ A local or global variable.
-    | VarField a (PrefixExpression a) (Expression a) -- ^ @table[exp]@
-    | VarFieldName a (PrefixExpression a) (Ident a)  -- ^ @table.field@
+    = VarIdent     !a !(Ident a)                            -- ^ A local or global variable.
+    | VarField     !a !(PrefixExpression a) !(Expression a) -- ^ @table[exp]@
+    | VarFieldName !a !(PrefixExpression a) !(Ident a)      -- ^ @table.field@
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
+
+data VariableList1 a
+    = VariableList1 !a !(NonEmpty (Variable a))
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
+
+data VariableList a = VariableList a (NonEmpty (Variable a))
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Expression a
-    = Nil a
-    | Bool a Bool
-    | Integer a String
-    | Float a String
-    | String a String
-    | Vararg a
-    | FunDef a (FunctionBody a)
-    | PrefixExp a (PrefixExpression a)
-    | TableCtor a (TableConstructor a)
-    | Binop a (Binop a) (Expression a) (Expression a)
-    | Unop a (Unop a) (Expression a)
+    = Nil       !a
+    | Bool      !a !Bool
+    | Integer   !a !String
+    | Float     !a !String
+    | String    !a !String
+    | Vararg    !a
+    | FunDef    !a !(FunctionBody a)
+    | PrefixExp !a !(PrefixExpression a)
+    | TableCtor !a !(TableConstructor a)
+    | Binop     !a !(Binop a) !(Expression a) !(Expression a)
+    | Unop      !a !(Unop a) !(Expression a)
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
+
+data ExpressionList a
+    = ExpressionList !a ![Expression a]
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
+
+data ExpressionList1 a
+    = ExpressionList1 !a !(NonEmpty (Expression a))
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data PrefixExpression a
-    = PrefixVar a (Variable a)
-    | PrefixFunCall a (FunctionCall a)
-    | Parens a (Expression a)
+    = PrefixVar     !a !(Variable a)
+    | PrefixFunCall !a !(FunctionCall a)
+    | Parens        !a !(Expression a)
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data FunctionCall a
-    = FunctionCall a (PrefixExpression a) (FunctionArgs a)
-    | MethodCall a (PrefixExpression a) (Ident a) (FunctionArgs a)
+    = FunctionCall !a !(PrefixExpression a) !(FunctionArgs a)
+    | MethodCall   !a !(PrefixExpression a) !(Ident a) !(FunctionArgs a)
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data FunctionArgs a
-    = Args a [Expression a]
-    | ArgsTable a (TableConstructor a)
-    | ArgsString a String
+    = Args       !a !(ExpressionList a)
+    | ArgsTable  !a !(TableConstructor a)
+    | ArgsString !a !String
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data FunctionBody a
-    = FunctionBody a (NonEmpty (Ident a)) Bool (Block a) -- ^ @(arg1 {, arg2} [, ...]) block end@
-    | FunctionBodyVararg a (Block a)                     -- ^ @(...) block end@
+    = FunctionBody       !a !(IdentList1 a) !Bool !(Block a) -- ^ @(arg1 {, arg2} [, ...]) block end@
+    | FunctionBodyVararg !a !(Block a)                             -- ^ @(...) block end@
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data TableConstructor a
-    = TableConstructor a [Field a]
+    = TableConstructor !a !(FieldList a)
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Field a
-    = FieldExp a (Expression a) (Expression a) -- ^ @[exp1] = exp2@
-    | FieldIdent a (Ident a) (Expression a)    -- ^ @name = exp@
-    | Field a (Expression a)                   -- ^ @exp@
+    = FieldExp   !a !(Expression a) !(Expression a) -- ^ @[exp1] = exp2@
+    | FieldIdent !a !(Ident a) !(Expression a)      -- ^ @name = exp@
+    | Field      !a !(Expression a)                 -- ^ @exp@
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
+
+data FieldList a
+    = FieldList !a ![Field a]
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Binop a
-    = Plus a       -- ^ +
-    | Minus a      -- ^ -
-    | Mult a       -- ^ *
-    | FloatDiv a   -- ^ /
-    | FloorDiv a   -- ^ //
-    | Exponent a   -- ^ ^
-    | Modulo a     -- ^ %
-    | BitwiseAnd a -- ^ &
-    | BitwiseXor a -- ^ ~
-    | BitwiseOr a  -- ^ |
-    | Rshift a     -- ^ >>
-    | Lshift a     -- ^ <<
-    | Concat a     -- ^ ..
-    | Lt a         -- ^ <
-    | Leq a        -- ^ <=
-    | Gt a         -- ^ >
-    | Geq a        -- ^ >=
-    | Eq a         -- ^ ==
-    | Neq a        -- ^ ~=
-    | And a        -- ^ and
-    | Or a         -- ^ or
+    = Plus       !a -- ^ +
+    | Minus      !a -- ^ -
+    | Mult       !a -- ^ *
+    | FloatDiv   !a -- ^ /
+    | FloorDiv   !a -- ^ //
+    | Exponent   !a -- ^ \^
+    | Modulo     !a -- ^ %
+    | BitwiseAnd !a -- ^ &
+    | BitwiseXor !a -- ^ ~
+    | BitwiseOr  !a -- ^ |
+    | Rshift     !a -- ^ >>
+    | Lshift     !a -- ^ <<
+    | Concat     !a -- ^ ..
+    | Lt         !a -- ^ <
+    | Leq        !a -- ^ <=
+    | Gt         !a -- ^ >
+    | Geq        !a -- ^ >=
+    | Eq         !a -- ^ ==
+    | Neq        !a -- ^ ~=
+    | And        !a -- ^ and
+    | Or         !a -- ^ or
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Unop a
-    = Negate a     -- -
-    | Not a        -- not
-    | Length a     -- #
-    | BitwiseNot a -- ~
+    = Negate     !a -- ^ -
+    | Not        !a -- ^ not
+    | Length     !a -- ^ #
+    | BitwiseNot !a -- ^ ~
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 --------------------------------------------------------------------------------
@@ -165,7 +204,7 @@ instance Pretty (Block a) where
 
 instance Pretty (Statement a) where
     pretty (EmptyStmt _) = char ';'
-    pretty (Assign _ (v:|vs) (e:|es)) =
+    pretty (Assign _ (VariableList1 _ (v:|vs)) (ExpressionList1 _ (e:|es))) =
             sepBy (text ", ") (v:vs)
         <+> char '='
         <+> sepBy (text ", ") (e:es)
@@ -197,15 +236,15 @@ instance Pretty (Statement a) where
             text "for" <+> pretty i <+> char '=' <+> pretty e1 <> char ',' <+> pretty e2 <> maybe empty ((char ',' <+>) . pretty) me3 <+> text "do"
         <$> indent 4 (pretty b)
         <$> text "end"
-    pretty (ForIn _ (i:|is) (e:|es) b) =
+    pretty (ForIn _ (IdentList1 _ (i:|is)) (ExpressionList1 _ (e:|es)) b) =
             text "for" <+> sepBy (text ", ") (i:is) <+> text "in" <+> sepBy (text ", ") (e:es) <+> text "do"
         <$> indent 4 (pretty b)
         <$> text "end"
-    pretty (FunAssign _ (i:|is) mi b) =
-            text "function" <+> sepBy (char '.') (i:is) <> maybe empty ((char ':' <>) . pretty) mi <> pretty b
+    pretty (FunAssign _ n b) =
+            text "function" <+> pretty n <> pretty b
     pretty (LocalFunAssign _ i b) =
             text "local" <+> text "function" <+> pretty i <> pretty b
-    pretty (LocalAssign _ (i:|is) es) =
+    pretty (LocalAssign _ (IdentList1 _ (i:|is)) (ExpressionList _ es)) =
             text "local"
         <+> sepBy (text ", ") (i:is)
         <+> case es of
@@ -213,7 +252,10 @@ instance Pretty (Statement a) where
                 _  -> char '=' <+> sepBy (text ", ") es
 
 instance Pretty (ReturnStatement a) where
-    pretty (ReturnStatement _ es) = text "return" <+> sepBy (text ", ") es
+    pretty (ReturnStatement _ (ExpressionList _ es)) = text "return" <+> sepBy (text ", ") es
+
+instance Pretty (FunctionName a) where
+    pretty (FunctionName _ (IdentList1 _ (i:|is)) mi) = sepBy (char '.') (i:is) <> maybe empty ((char ':' <>) . pretty) mi
 
 instance Pretty (Variable a) where
     pretty (VarIdent _ i)       = pretty i
@@ -244,12 +286,12 @@ instance Pretty (FunctionCall a) where
     pretty (MethodCall _ e i a) = pretty e <> char ':' <> pretty i <> pretty a
 
 instance Pretty (FunctionArgs a) where
-    pretty (Args _ es)      = encloseSep lparen rparen (text ", ") (map pretty es)
-    pretty (ArgsTable _ t)  = pretty t
-    pretty (ArgsString _ s) = dquotes (string s)
+    pretty (Args _ (ExpressionList _ es)) = encloseSep lparen rparen (text ", ") (map pretty es)
+    pretty (ArgsTable _ t)                = pretty t
+    pretty (ArgsString _ s)               = dquotes (string s)
 
 instance Pretty (FunctionBody a) where
-    pretty (FunctionBody _ (i:|is) va b) =
+    pretty (FunctionBody _ (IdentList1 _ (i:|is)) va b) =
             encloseSep lparen rhs (text ", ") (map pretty (i:is))
         <$> indent 4 (pretty b)
         <$> text "end"
@@ -263,9 +305,9 @@ instance Pretty (FunctionBody a) where
         <$> text "end"
 
 instance Pretty (TableConstructor a) where
-    pretty (TableConstructor _ []) = lbrace <+> rbrace
-    pretty (TableConstructor _ [f]) = lbrace <+> pretty f <+> rbrace
-    pretty (TableConstructor _ fs) =
+    pretty (TableConstructor _ (FieldList _ []))  = lbrace <+> rbrace
+    pretty (TableConstructor _ (FieldList _ [f])) = lbrace <+> pretty f <+> rbrace
+    pretty (TableConstructor _ (FieldList _ fs))  =
             lbrace
         <$> indent 4 (vsep (map pretty fs))
         <$> rbrace
@@ -316,6 +358,9 @@ class Functor ast => Annotated ast where
 instance Annotated Ident where
     ann = lens (\(Ident a _) -> a) (\(Ident _ b) a -> Ident a b)
 
+instance Annotated IdentList1 where
+    ann = lens (\(IdentList1 a _) -> a) (\(IdentList1 _ b) a -> IdentList1 a b)
+
 instance Annotated Block where
     ann = lens (\(Block a _ _) -> a) (\(Block _ b c) a -> Block a b c)
 
@@ -334,7 +379,7 @@ instance Annotated Statement where
         f (If a _ _)             = a
         f (For a _ _ _ _ _)      = a
         f (ForIn a _ _ _)        = a
-        f (FunAssign a _ _ _)    = a
+        f (FunAssign a _ _)      = a
         f (LocalFunAssign a _ _) = a
         f (LocalAssign a _ _)    = a
 
@@ -350,12 +395,15 @@ instance Annotated Statement where
         g (If _ b c)             a = If a b c
         g (For _ b c d e h)      a = For a b c d e h
         g (ForIn _ b c d)        a = ForIn a b c d
-        g (FunAssign _ b c d)    a = FunAssign a b c d
+        g (FunAssign _ b c)      a = FunAssign a b c
         g (LocalFunAssign _ b c) a = LocalFunAssign a b c
         g (LocalAssign _ b c)    a = LocalAssign a b c
 
 instance Annotated ReturnStatement where
     ann = lens (\(ReturnStatement a _) -> a) (\(ReturnStatement _ b) a -> ReturnStatement a b)
+
+instance Annotated FunctionName where
+    ann = lens (\(FunctionName a _ _) -> a) (\(FunctionName _ b c) a -> FunctionName a b c)
 
 instance Annotated Variable where
     ann = lens f g
@@ -367,6 +415,9 @@ instance Annotated Variable where
         g (VarIdent _ b)       a = VarIdent a b
         g (VarField _ b c)     a = VarField a b c
         g (VarFieldName _ b c) a = VarFieldName a b c
+
+instance Annotated VariableList1 where
+    ann = lens (\(VariableList1 a _) -> a) (\(VariableList1 _ b) a -> VariableList1 a b)
 
 instance Annotated Expression where
     ann = lens f g
@@ -394,6 +445,12 @@ instance Annotated Expression where
         g (TableCtor _ b) a = TableCtor a b
         g (Binop _ b c d) a = Binop a b c d
         g (Unop _ b c)    a = Unop a b c
+
+instance Annotated ExpressionList where
+    ann = lens (\(ExpressionList a _) -> a) (\(ExpressionList _ b) a -> ExpressionList a b)
+
+instance Annotated ExpressionList1 where
+    ann = lens (\(ExpressionList1 a _) -> a) (\(ExpressionList1 _ b) a -> ExpressionList1 a b)
 
 instance Annotated PrefixExpression where
     ann = lens f g
@@ -448,6 +505,9 @@ instance Annotated Field where
         g (FieldExp _ b c)   a = FieldExp a b c
         g (FieldIdent _ b c) a = FieldIdent a b c
         g (Field _ b)        a = Field a b
+
+instance Annotated FieldList where
+    ann = lens (\(FieldList a _) -> a) (\(FieldList _ b) a -> FieldList a b)
 
 instance Annotated Binop where
     ann = lens f g
