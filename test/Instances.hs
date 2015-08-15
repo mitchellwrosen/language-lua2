@@ -3,7 +3,7 @@
 
 module Instances where
 
-import Syntax
+import Language.Lua.Syntax
 
 import           Control.Applicative
 import           Data.Char                  (isAsciiLower, isAsciiUpper, isDigit)
@@ -41,6 +41,10 @@ instance Arbitrary a => Arbitrary (Ident a) where
                    , "not", "or", "repeat", "return", "then", "true", "until", "while"
                    ]
 
+instance Arbitrary a => Arbitrary (IdentList1 a) where
+    arbitrary = IdentList1 <$> arbitrary <*> arbitrary
+    shrink = genericShrink
+
 instance Arbitrary a => Arbitrary (Block a) where
     arbitrary = Block <$> arbitrary <*> listOf1 arbitrary <*> arbitrary
     shrink = genericShrink
@@ -59,7 +63,7 @@ instance Arbitrary a => Arbitrary (Statement a) where
         , If             <$> arbitrary <*> arbitrary <*> arbitrary
         , For            <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
         , ForIn          <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-        , FunAssign      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+        , FunAssign      <$> arbitrary <*> arbitrary <*> arbitrary
         , LocalFunAssign <$> arbitrary <*> arbitrary <*> arbitrary
         , LocalAssign    <$> arbitrary <*> arbitrary <*> arbitrary
         ]
@@ -70,6 +74,9 @@ instance Arbitrary a => Arbitrary (ReturnStatement a) where
     arbitrary = ReturnStatement <$> arbitrary <*> arbitrary
     shrink = genericShrink
 
+instance Arbitrary a => Arbitrary (FunctionName a) where
+    arbitrary = FunctionName <$> arbitrary <*> arbitrary <*> arbitrary
+    shrink = genericShrink
 
 instance Arbitrary a => Arbitrary (Variable a) where
     arbitrary = oneof
@@ -79,6 +86,9 @@ instance Arbitrary a => Arbitrary (Variable a) where
         ]
 
     shrink = genericShrink
+
+instance Arbitrary a => Arbitrary (VariableList1 a) where
+    arbitrary = VariableList1 <$> arbitrary <*> arbitrary
 
 instance Arbitrary a => Arbitrary (Expression a) where
     arbitrary = oneof
@@ -96,6 +106,12 @@ instance Arbitrary a => Arbitrary (Expression a) where
         ]
 
     shrink = genericShrink
+
+instance Arbitrary a => Arbitrary (ExpressionList a) where
+    arbitrary = ExpressionList <$> arbitrary <*> arbitrary
+
+instance Arbitrary a => Arbitrary (ExpressionList1 a) where
+    arbitrary = ExpressionList1 <$> arbitrary <*> arbitrary
 
 instance Arbitrary a => Arbitrary (PrefixExpression a) where
     arbitrary = oneof
@@ -140,6 +156,10 @@ instance Arbitrary a => Arbitrary (Field a) where
 
     shrink = genericShrink
 
+instance Arbitrary a => Arbitrary (FieldList a) where
+    arbitrary = FieldList <$> arbitrary <*> arbitrary
+    shrink = genericShrink
+
 instance Arbitrary a => Arbitrary (Binop a) where
     arbitrary = oneof
         [ Plus       <$> arbitrary
@@ -178,9 +198,6 @@ instance Arbitrary a => Arbitrary (Unop a) where
     shrink = genericShrink
 
 -- Orphans
-
-instance Arbitrary SrcLoc where
-    arbitrary = pure (SrcLoc NoLoc)
 
 instance Arbitrary a => Arbitrary (NonEmpty a) where
     arbitrary = NE.fromList <$> listOf1 arbitrary

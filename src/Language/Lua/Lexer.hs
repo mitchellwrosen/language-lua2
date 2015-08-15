@@ -1,7 +1,7 @@
 module Language.Lua.Lexer
     ( luaLexer
 
-    -- * Re-exports
+    -- * <https://hackage.haskell.org/package/Earley Earley> re-exports
     , LexicalError(..)
     , TokenStream(..)
     , runLexer
@@ -19,6 +19,13 @@ import           Language.Lexer.Applicative
 import           Numeric                    (readHex)
 import           Text.Regex.Applicative
 
+-- | A Lua lexer.
+--
+-- > lex :: String -> [L Token]
+-- > lex s = streamToList . runLexer luaLexer ""
+--
+-- >>> lex "5+5"
+--
 luaLexer :: Lexer Token
 luaLexer = luaTokens <> luaWhitespace
 

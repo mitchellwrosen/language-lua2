@@ -45,9 +45,6 @@ data IdentList1 a
     = IdentList1 !a !(NonEmpty (Ident a))
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
-data IdentList a = IdentList a (NonEmpty (Ident a))
-    deriving (Data, Eq, Functor, Generic, Show, Typeable)
-
 -- | A chunk; Lua's compilation unit.
 --
 -- <http://www.lua.org/manual/5.3/manual.html#3.3.2>
@@ -97,9 +94,6 @@ data Variable a
 
 data VariableList1 a
     = VariableList1 !a !(NonEmpty (Variable a))
-    deriving (Data, Eq, Functor, Generic, Show, Typeable)
-
-data VariableList a = VariableList a (NonEmpty (Variable a))
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data Expression a

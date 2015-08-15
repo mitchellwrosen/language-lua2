@@ -18,12 +18,14 @@ import Language.Lua.Syntax
 import Language.Lua.Token
 
 import           Control.Applicative
+import           Data.Data
 import           Data.List.NonEmpty  (NonEmpty((:|)))
 import qualified Data.List.NonEmpty  as NE
 import           Data.Loc
 import           Data.Maybe          (fromMaybe)
 import           Data.Monoid
 import           Data.Sequence       (Seq)
+import           GHC.Generics        (Generic)
 import           Lens.Micro
 import           Prelude             hiding (break, repeat, until)
 import           Text.Earley
@@ -36,7 +38,7 @@ type G r a = Grammar r String (P r a)
 data NodeInfo = NodeInfo
     { nodeLoc    :: !Loc
     , nodeTokens :: !(Seq (L Token))
-    } deriving (Show)
+    } deriving (Data, Eq, Generic, Show, Typeable)
 
 instance Monoid NodeInfo where
     mempty = NodeInfo mempty mempty

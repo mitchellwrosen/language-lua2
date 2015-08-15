@@ -1,5 +1,8 @@
 module Language.Lua.Token where
 
+import Data.Data
+import GHC.Generics (Generic)
+
 data Token
     = TkAnd              -- ^ and
     | TkBreak            -- ^ break
@@ -63,4 +66,4 @@ data Token
     | TkStringLit String
     | TkIntLit String
     | TkFloatLit String
-    deriving (Eq, Show)
+    deriving (Data, Eq, Generic, Show, Typeable)
