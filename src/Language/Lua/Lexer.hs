@@ -1,7 +1,7 @@
 module Language.Lua.Lexer
     ( luaLexer
 
-    -- * <https://hackage.haskell.org/package/Earley Earley> re-exports
+    -- * <https://hackage.haskell.org/package/lexer-applicative lexer-applicative> re-exports
     , LexicalError(..)
     , TokenStream(..)
     , runLexer
@@ -19,13 +19,16 @@ import           Language.Lexer.Applicative
 import           Numeric                    (readHex)
 import           Text.Regex.Applicative
 
--- | A Lua lexer.
---
--- > lex :: String -> [L Token]
--- > lex s = streamToList . runLexer luaLexer ""
+-- |
+-- @
+-- lex :: String -> [L Token]
+-- lex = 'streamToList' . 'runLexer' 'luaLexer' ""
+-- @
 --
 -- >>> lex "5+5"
---
+-- [TkIntLit "5",TkPlus,TkIntLit "5"]
+-- >>> lex "foo?"
+-- [TkIdent "foo"*** Exception: Lexical error at :1:4
 luaLexer :: Lexer Token
 luaLexer = luaTokens <> luaWhitespace
 

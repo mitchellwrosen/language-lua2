@@ -1,10 +1,19 @@
 module Language.Lua.Parser
-    ( NodeInfo(..)
-    , luaBlock
-    , luaExpression
-    , luaStatement
+    ( -- * Lua parsers
+      parseLua
+    , parseLuaWith
+    , LuaParseException(..)
 
-    -- * Re-exports
+      -- * Lua grammars
+    , LuaGrammar
+    , luaChunk
+    , luaStatement
+    , luaExpression
+    , NodeInfo(..)
+
+    -- * <https://hackage.haskell.org/package/Earley Earley> re-exports
+    -- | These are provided if you want more control over parsing than what
+    -- 'parseLua' or 'parseLuaWith' provides.
     , Report(..)
     , Result(..)
     , allParses
@@ -14,10 +23,12 @@ module Language.Lua.Parser
     ) where
 
 import Language.Lua.Internal
+import Language.Lua.Lexer
 import Language.Lua.Syntax
 import Language.Lua.Token
 
 import           Control.Applicative
+import           Control.Exception
 import           Data.Data
 import           Data.List.NonEmpty  (NonEmpty((:|)))
 import qualified Data.List.NonEmpty  as NE
@@ -28,16 +39,18 @@ import           Data.Sequence       (Seq)
 import           GHC.Generics        (Generic)
 import           Lens.Micro
 import           Prelude             hiding (break, repeat, until)
+import           System.IO.Unsafe    (unsafePerformIO)
 import           Text.Earley
 import           Text.Earley.Mixfix
 import           Text.Printf         (printf)
 
-type P r a = Prod r String (L Token) a
-type G r a = Grammar r String (P r a)
-
+-- | AST node source location and constituent tokens. The tokens are provided
+-- for style-checking purposes; with them, you may assert proper whitespace
+-- protocol, alignment, trailing commas on table constructors, and whatever
+-- other subjectivities.
 data NodeInfo = NodeInfo
-    { nodeLoc    :: !Loc
-    , nodeTokens :: !(Seq (L Token))
+    { nodeLoc    :: !Loc             -- ^ Source location; spans the entirety of the node.
+    , nodeTokens :: !(Seq (L Token)) -- ^ Parsed tokens involved in node production.
     } deriving (Data, Eq, Generic, Show, Typeable)
 
 instance Monoid NodeInfo where
@@ -79,23 +92,109 @@ instance HasNodeInfo a => HasNodeInfo (NonEmpty a) where
 instance HasNodeInfo a => HasNodeInfo (Maybe a) where
     nodeInfo = foldMap nodeInfo
 
-luaBlock :: G r (Block NodeInfo)
-luaBlock = (\(a,_,_) -> a) <$> grammar
+type LuaGrammar f = forall r. Grammar r String (Prod r String (L Token) (f NodeInfo))
 
-luaStatement :: G r (Statement NodeInfo)
+data LuaParseException
+    = LuaLexException !Pos
+    | LuaParseException !(Report String [L Token])
+    | LuaAmbiguousParseException !(Report String [L Token])
+    deriving (Eq, Typeable)
+
+instance Show LuaParseException where
+    show (LuaLexException pos) = "Lexical error at " ++ displayPos pos
+    show (LuaParseException r) = "Parse exception: " ++ show r
+    show (LuaAmbiguousParseException r) =
+            "The 'impossible' happened: ambiguous parse. See "
+         ++ "<http://www.lua.org/manual/5.3/manual.html#3.3.1> for a likely explanation. "
+         ++ "Parse report:\n"
+         ++ show r
+
+instance Exception LuaParseException
+
+-- | Parse a Lua file. May throw 'LuaParseException'.
+--
+-- @
+-- 'parseLua' = 'parseLuaWith' 'luaChunk'
+-- @
+parseLua
+    :: String -- ^ Source filename (used in locations).
+    -> String -- ^ Source contents.
+    -> Chunk NodeInfo
+parseLua = parseLuaWith luaChunk
+
+-- | Parse Lua code with the given grammar. May throw 'LuaParseException'.
+--
+-- >>> parseLuaWith luaExprssion "" "5+5"
+-- Binop
+--     (NodeInfo
+--         { nodeLoc    = Loc (Pos "" 1 1 0) (Pos "" 1 3 2)
+--         , nodeTokens = fromList [TkIntLit "5",TkPlus,TkIntLit "5"]
+--         })
+--     (Plus
+--         (NodeInfo
+--             { nodeLoc    = Loc (Pos "" 1 2 1) (Pos "" 1 2 1)
+--             , nodeTokens = fromList [TkPlus]
+--             }))
+--     (Integer
+--         (NodeInfo
+--             { nodeLoc    = Loc (Pos "" 1 1 0) (Pos "" 1 1 0)
+--             , nodeTokens = fromList [TkIntLit "5"]
+--             })
+--         "5")
+--     (Integer
+--         (NodeInfo
+--             { nodeLoc    = Loc (Pos "" 1 3 2) (Pos "" 1 3 2)
+--             , nodeTokens = fromList [TkIntLit "5"]
+--             })
+--          "5")
+--
+-- All AST nodes are 'Functor's over their annotation:
+--
+-- >>> (() <$) <$> parseLuaWith luaExpression "" "5+5"
+-- Binop () (Plus ()) (Integer () "5") (Integer () "5")
+parseLuaWith
+    :: LuaGrammar f -- ^ Grammar to parse with.
+    -> String       -- ^ Source filename (used in locations).
+    -> String       -- ^ Source contents.
+    -> f NodeInfo
+parseLuaWith g filename contents =
+    let tokens = streamToList' (runLexer luaLexer filename contents)
+    in case fullParses (parser g tokens) of
+           ([x], _) -> x
+           ([],  r) -> throw (LuaParseException r)
+           (_,   r) -> throw (LuaAmbiguousParseException r)
+
+-- | Wrap a LexicalError in our own LuaParseException.
+streamToList' :: TokenStream tok -> [tok]
+streamToList' ts  = unsafePerformIO $
+    catch (evaluate $ streamToList ts) (\(LexicalError pos) -> throw (LuaLexException pos))
+{-# NOINLINE streamToList' #-}
+
+-- | Grammar for a Lua chunk; i.e. a Lua compilation unit, defined as a list of
+-- statements. This is the grammar you should use to parse real Lua code.
+luaChunk :: LuaGrammar Chunk -- Grammar r String (Prod r String (L Token) (Block NodeInfo))
+luaChunk = (\(a,_,_) -> a) <$> grammar
+
+-- | Grammar for a single Lua statement. Mostly subsumed by 'luaChunk'.
+luaStatement :: LuaGrammar Statement
 luaStatement = (\(_,b,_) -> b) <$> grammar
 
-luaExpression :: G r (Expression NodeInfo)
+-- | Grammar for a Lua expression. Provided for smaller REPL-like parsing that
+-- operates only on expressions.
+luaExpression :: LuaGrammar Expression
 luaExpression = (\(_,_,c) -> c) <$> grammar
 
-grammar :: Grammar r String (P r (Block NodeInfo), P r (Statement NodeInfo), P r (Expression NodeInfo))
+grammar :: Grammar r String ( Prod r String (L Token) (Block NodeInfo)
+                            , Prod r String (L Token) (Statement NodeInfo)
+                            , Prod r String (L Token) (Expression NodeInfo)
+                            )
 grammar = mdo
-    block :: P r (Block NodeInfo) <- rule $
+    block :: Prod r String (L Token) (Block NodeInfo) <- rule $
         mkBlock
         <$> many statement
         <*> optional returnStatement
 
-    statement :: P r (Statement NodeInfo) <- rule $
+    statement :: Prod r String (L Token) (Statement NodeInfo) <- rule $
             mkEmptyStmt
             <$> semi
         <|> mkAssign
@@ -179,26 +278,26 @@ grammar = mdo
                 <$> eq
                 <*> expressionList1)
 
-    returnStatement :: P r (ReturnStatement NodeInfo) <- rule $
+    returnStatement :: Prod r String (L Token) (ReturnStatement NodeInfo) <- rule $
         mkReturnStatement
         <$> return'
         <*> expressionList
         <*> optional semi
 
-    functionName :: P r (FunctionName NodeInfo) <- rule $
+    functionName :: Prod r String (L Token) (FunctionName NodeInfo) <- rule $
         mkFunctionName
         <$> identSepByDot
         <*> optional ((,)
             <$> colon
             <*> ident)
 
-    identSepByDot :: P r (IdentList1 NodeInfo) <-
+    identSepByDot :: Prod r String (L Token) (IdentList1 NodeInfo) <-
         uncurry IdentList1 <$$> sepBy1 ident dot
 
-    varList1 :: P r (VariableList1 NodeInfo) <-
+    varList1 :: Prod r String (L Token) (VariableList1 NodeInfo) <-
         uncurry VariableList1 <$$> sepBy1 var comma
 
-    var :: P r (Variable NodeInfo) <- rule $
+    var :: Prod r String (L Token) (Variable NodeInfo) <- rule $
             mkVarIdent
             <$> ident
         <|> mkVarField
@@ -211,19 +310,19 @@ grammar = mdo
             <*> dot
             <*> ident
 
-    identList1 :: P r (IdentList1 NodeInfo) <-
+    identList1 :: Prod r String (L Token) (IdentList1 NodeInfo) <-
         uncurry IdentList1 <$$> sepBy1 ident comma
 
-    expressionList :: P r (ExpressionList NodeInfo) <-
+    expressionList :: Prod r String (L Token) (ExpressionList NodeInfo) <-
         uncurry ExpressionList <$$> sepBy expression comma
 
-    expressionList1 :: P r (ExpressionList1 NodeInfo) <-
+    expressionList1 :: Prod r String (L Token) (ExpressionList1 NodeInfo) <-
         uncurry ExpressionList1 <$$> sepBy1 expression comma
 
-    expression :: P r (Expression NodeInfo) <-
+    expression :: Prod r String (L Token) (Expression NodeInfo) <-
         mixfixExpression expressionTable atomicExpression combineMixfix
 
-    atomicExpression :: P r (Expression NodeInfo) <- rule $
+    atomicExpression :: Prod r String (L Token) (Expression NodeInfo) <- rule $
             mkNil        <$> nil
         <|> mkBool True  <$> true
         <|> mkBool False <$> false
@@ -234,7 +333,7 @@ grammar = mdo
         <|> mkPrefixExp  <$> prefixExpression
         <|> mkTableCtor  <$> tableConstructor
 
-    prefixExpression :: P r (PrefixExpression NodeInfo) <- rule $
+    prefixExpression :: Prod r String (L Token) (PrefixExpression NodeInfo) <- rule $
             mkPrefixVar
             <$> var
         <|> mkPrefixFunCall
@@ -244,7 +343,7 @@ grammar = mdo
             <*> expression
             <*> rparen
 
-    functionCall :: P r (FunctionCall NodeInfo) <- rule $
+    functionCall :: Prod r String (L Token) (FunctionCall NodeInfo) <- rule $
         mkFunctionCall
         <$> prefixExpression
         <*> optional ((,)
@@ -252,7 +351,7 @@ grammar = mdo
             <*> ident)
         <*> functionArgs
 
-    functionArgs :: P r (FunctionArgs NodeInfo) <- rule $
+    functionArgs :: Prod r String (L Token) (FunctionArgs NodeInfo) <- rule $
             mkArgs
             <$> lparen
             <*> expressionList
@@ -262,7 +361,7 @@ grammar = mdo
         <|> mkArgsString
             <$> stringLit
 
-    functionBody :: P r (FunctionBody NodeInfo) <- rule $
+    functionBody :: Prod r String (L Token) (FunctionBody NodeInfo) <- rule $
             mkFunctionBody
             <$> lparen
             <*> identList1
@@ -279,13 +378,13 @@ grammar = mdo
             <*> block
             <*> end
 
-    tableConstructor :: P r (TableConstructor NodeInfo) <- rule $
+    tableConstructor :: Prod r String (L Token) (TableConstructor NodeInfo) <- rule $
         mkTableConstructor
         <$> lbrace
         <*> optional fieldList
         <*> rbrace
 
-    field :: P r (Field NodeInfo) <- rule $
+    field :: Prod r String (L Token) (Field NodeInfo) <- rule $
             mkFieldExp
             <$> lbracket
             <*> expression
@@ -305,7 +404,7 @@ grammar = mdo
     return (block, statement, expression)
   where
     -- http://www.lua.org/manual/5.3/manual.html#3.4.8
-    expressionTable :: [[([Maybe (P r (L Token))], Associativity)]]
+    expressionTable :: [[([Maybe (Prod r String (L Token) (L Token))], Associativity)]]
     expressionTable =
         [ [ (binop TkOr           "or",  LeftAssoc)  ]
 
@@ -345,10 +444,10 @@ grammar = mdo
         , [ (binop TkCarrot       "^",   RightAssoc) ]
         ]
       where
-        binop :: Token -> String -> [Maybe (P r (L Token))]
+        binop :: Token -> String -> [Maybe (Prod r String (L Token) (L Token))]
         binop tk s = [Nothing, Just (locSymbol tk <?> s), Nothing]
 
-        unop :: Token -> String -> ([Maybe (P r (L Token))], Associativity)
+        unop :: Token -> String -> ([Maybe (Prod r String (L Token) (L Token))], Associativity)
         unop tk s = ([Just (locSymbol tk <?> s), Nothing], RightAssoc)
 
     combineMixfix :: [Maybe (L Token)] -> [Expression NodeInfo] -> Expression NodeInfo
@@ -627,128 +726,128 @@ sepBy1 f sep = mdo
 --------------------------------------------------------------------------------
 -- Token productions
 
-break :: P r (L Token)
+break :: Prod r String (L Token) (L Token)
 break = locSymbol TkBreak <?> "break"
 
-colon :: P r (L Token)
+colon :: Prod r String (L Token) (L Token)
 colon = locSymbol TkColon <?> ":"
 
-comma :: P r (L Token)
+comma :: Prod r String (L Token) (L Token)
 comma = locSymbol TkComma <?> ","
 
-do' :: P r (L Token)
+do' :: Prod r String (L Token) (L Token)
 do' = locSymbol TkDo <?> "do"
 
-dot :: P r (L Token)
+dot :: Prod r String (L Token) (L Token)
 dot = locSymbol TkDot <?> "dot"
 
-doubleColon :: P r (L Token)
+doubleColon :: Prod r String (L Token) (L Token)
 doubleColon = locSymbol TkDoubleColon <?> "::"
 
-else' :: P r (L Token)
+else' :: Prod r String (L Token) (L Token)
 else' = locSymbol TkElse <?> "else"
 
-elseif :: P r (L Token)
+elseif :: Prod r String (L Token) (L Token)
 elseif = locSymbol TkElseif <?> "elseif"
 
-end :: P r (L Token)
+end :: Prod r String (L Token) (L Token)
 end = locSymbol TkEnd <?> "end"
 
-eq :: P r (L Token)
+eq :: Prod r String (L Token) (L Token)
 eq = locSymbol TkEq <?> "="
 
-false :: P r (L Token)
+false :: Prod r String (L Token) (L Token)
 false = locSymbol TkFalse <?> "false"
 
-floatLit :: P r (L Token)
+floatLit :: Prod r String (L Token) (L Token)
 floatLit = locSatisfy isFloatLit <?> "float literal"
   where
     isFloatLit :: Token -> Bool
     isFloatLit (TkFloatLit _) = True
     isFloatLit _ = False
 
-for :: P r (L Token)
+for :: Prod r String (L Token) (L Token)
 for = locSymbol TkFor <?> "for"
 
-function :: P r (L Token)
+function :: Prod r String (L Token) (L Token)
 function = locSymbol TkFunction <?> "function"
 
-goto :: P r (L Token)
+goto :: Prod r String (L Token) (L Token)
 goto = locSymbol TkGoto <?> "goto"
 
-ident :: P r (Ident NodeInfo)
+ident :: Prod r String (L Token) (Ident NodeInfo)
 ident = (\tk@(L _ (TkIdent s)) -> Ident (nodeInfo tk) s) <$> locSatisfy isIdent <?> "ident"
   where
     isIdent :: Token -> Bool
     isIdent (TkIdent _) = True
     isIdent _ = False
 
-if' :: P r (L Token)
+if' :: Prod r String (L Token) (L Token)
 if' = locSymbol TkIf <?> "if"
 
-in' :: P r (L Token)
+in' :: Prod r String (L Token) (L Token)
 in' = locSymbol TkIn <?> "in"
 
-intLit :: P r (L Token)
+intLit :: Prod r String (L Token) (L Token)
 intLit = locSatisfy isIntLit <?> "int literal"
   where
     isIntLit :: Token -> Bool
     isIntLit (TkIntLit _) = True
     isIntLit _ = False
 
-lbrace :: P r (L Token)
+lbrace :: Prod r String (L Token) (L Token)
 lbrace = locSymbol TkLBrace <?> "{"
 
-lbracket :: P r (L Token)
+lbracket :: Prod r String (L Token) (L Token)
 lbracket = locSymbol TkLBracket <?> "["
 
-local :: P r (L Token)
+local :: Prod r String (L Token) (L Token)
 local = locSymbol TkLocal <?> "local"
 
-lparen :: P r (L Token)
+lparen :: Prod r String (L Token) (L Token)
 lparen = locSymbol TkLParen <?> "("
 
-nil :: P r (L Token)
+nil :: Prod r String (L Token) (L Token)
 nil = locSymbol TkNil <?> "nil"
 
-rbrace :: P r (L Token)
+rbrace :: Prod r String (L Token) (L Token)
 rbrace = locSymbol TkRBrace <?> "}"
 
-rbracket :: P r (L Token)
+rbracket :: Prod r String (L Token) (L Token)
 rbracket = locSymbol TkRBracket <?> "]"
 
-repeat :: P r (L Token)
+repeat :: Prod r String (L Token) (L Token)
 repeat = locSymbol TkRepeat <?> "repeat"
 
-return' :: P r (L Token)
+return' :: Prod r String (L Token) (L Token)
 return' = locSymbol TkReturn <?> "return"
 
-rparen :: P r (L Token)
+rparen :: Prod r String (L Token) (L Token)
 rparen = locSymbol TkRParen <?> ")"
 
-semi :: P r (L Token)
+semi :: Prod r String (L Token) (L Token)
 semi = locSymbol TkSemi <?> ";"
 
-stringLit :: P r (L Token)
+stringLit :: Prod r String (L Token) (L Token)
 stringLit = locSatisfy isStringLit <?> "string literal"
   where
     isStringLit :: Token -> Bool
     isStringLit (TkStringLit _) = True
     isStringLit _ = False
 
-then' :: P r (L Token)
+then' :: Prod r String (L Token) (L Token)
 then' = locSymbol TkThen <?> "then"
 
-tripleDot :: P r (L Token)
+tripleDot :: Prod r String (L Token) (L Token)
 tripleDot = locSymbol TkTripleDot <?> "..."
 
-true :: P r (L Token)
+true :: Prod r String (L Token) (L Token)
 true = locSymbol TkTrue <?> "true"
 
-until :: P r (L Token)
+until :: Prod r String (L Token) (L Token)
 until = locSymbol TkUntil <?> "until"
 
-while :: P r (L Token)
+while :: Prod r String (L Token) (L Token)
 while = locSymbol TkWhile <?> "while"
 
 --------------------------------------------------------------------------------

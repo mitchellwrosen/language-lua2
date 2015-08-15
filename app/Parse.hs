@@ -4,17 +4,13 @@
 
 module Main where
 
-import Language.Lua.Lexer
 import Language.Lua.Parser
-import Language.Lua.Token
 
 import Control.Monad
-import Data.Loc
 import Options.Applicative
-import Text.Earley
 import Text.PrettyPrint.Leijen    (Pretty(..), displayS, renderPretty)
 
-data GrammarMode = BlockMode | StatementMode | ExpressionMode
+data GrammarMode = ChunkMode | StatementMode | ExpressionMode
     deriving Show
 
 data Opts = Opts
@@ -42,32 +38,23 @@ main = execParser opts >>= main'
            <> help "Lua file to parse"))
 
     mode :: Parser GrammarMode
-    mode = BlockMode      <$ switch (long "block")
+    mode = ChunkMode      <$ switch (long "chunk")
        <|> StatementMode  <$ switch (long "statement")
        <|> ExpressionMode <$ switch (long "expression")
 
 main' :: Opts -> IO ()
 main' Opts{..} =
     case optsFile of
-        Just file -> readFile file >>= go luaBlock file
+        Just file -> readFile file >>= go luaChunk file
         Nothing ->
             case optsInteractive of
-                BlockMode      -> forever $ getLine >>= go luaBlock      "<stdin>"
+                ChunkMode      -> forever $ getLine >>= go luaChunk      "<stdin>"
                 StatementMode  -> forever $ getLine >>= go luaStatement  "<stdin>"
                 ExpressionMode -> forever $ getLine >>= go luaExpression "<stdin>"
   where
-    go :: forall a. (Show a, Pretty a) => (forall r. Grammar r String (Prod r String (L Token) a)) -> String -> String -> IO ()
-    go g filename =
-        either print (\xs -> f $ fullParses $ parser g xs)
-        . streamToEitherList
-        . runLexer luaLexer filename
-      where
-        f :: ([a], Report String [L Token]) -> IO ()
-        f ([x], _) = if optsPretty
-                         then putStrLn $ displayS (renderPretty 1.0 80 (pretty x)) ""
-                         else print x
-        f ([], r)  = putStrLn ("Parse error: " ++ show r)
-        f (xs, r)  = do
-            putStrLn "Ambiguous grammar."
-            mapM_ print xs
-            print r
+    go :: (Show (f NodeInfo), Pretty (f NodeInfo)) => LuaGrammar f -> String -> String -> IO ()
+    go g filename contents = do
+        let x = parseLuaWith g filename contents
+        if optsPretty
+             then putStrLn $ displayS (renderPretty 1.0 80 (pretty x)) ""
+             else print x

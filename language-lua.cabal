@@ -41,6 +41,7 @@ library
                       , DeriveDataTypeable
                       , DeriveFunctor
                       , DeriveGeneric
+                      , ExistentialQuantification
                       , FlexibleInstances
                       , OverloadedLists
                       , OverloadedStrings

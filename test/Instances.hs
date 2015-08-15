@@ -11,7 +11,6 @@ import           Data.HashSet               (HashSet)
 import qualified Data.HashSet               as HS
 import           Data.List.NonEmpty         (NonEmpty)
 import qualified Data.List.NonEmpty         as NE
-import           Data.Loc
 import           Test.QuickCheck.Arbitrary
 import           Test.QuickCheck.Gen
 
