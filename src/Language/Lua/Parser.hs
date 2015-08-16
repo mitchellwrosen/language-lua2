@@ -28,7 +28,7 @@ import Language.Lua.Syntax
 import Language.Lua.Token
 
 import           Control.Applicative
-import           Control.Exception
+import           Control.Exception   (Exception, mapException, throw)
 import           Data.Data
 import           Data.List.NonEmpty  (NonEmpty((:|)))
 import qualified Data.List.NonEmpty  as NE
@@ -39,7 +39,6 @@ import           Data.Sequence       (Seq)
 import           GHC.Generics        (Generic)
 import           Lens.Micro
 import           Prelude             hiding (break, repeat, until)
-import           System.IO.Unsafe    (unsafePerformIO)
 import           Text.Earley
 import           Text.Earley.Mixfix
 import           Text.Printf         (printf)
@@ -101,7 +100,7 @@ data LuaParseException
     deriving (Eq, Typeable)
 
 instance Show LuaParseException where
-    show (LuaLexException pos) = "Lexical error at " ++ displayPos pos
+    show (LuaLexException pos) = "oink Lexical error at " ++ displayPos pos
     show (LuaParseException r) = "Parse exception: " ++ show r
     show (LuaAmbiguousParseException r) =
             "The 'impossible' happened: ambiguous parse. See "
@@ -163,12 +162,18 @@ parseLuaWith g filename contents =
            ([x], _) -> x
            ([],  r) -> throw (LuaParseException r)
            (_,   r) -> throw (LuaAmbiguousParseException r)
+  where
+    -- Wrap a LexicalError in our own LuaParseException.
+    streamToList' :: forall tok. TokenStream tok -> [tok]
+    streamToList' = go . streamToList
+      where
+        go :: [tok] -> [tok]
+        go ts = case mapException f ts of
+                    [] -> []
+                    (t:ts') -> t : go ts'
 
--- | Wrap a LexicalError in our own LuaParseException.
-streamToList' :: TokenStream tok -> [tok]
-streamToList' ts  = unsafePerformIO $
-    catch (evaluate $ streamToList ts) (\(LexicalError pos) -> throw (LuaLexException pos))
-{-# NOINLINE streamToList' #-}
+        f :: LexicalError -> LuaParseException
+        f (LexicalError pos) = LuaLexException pos
 
 -- | Grammar for a Lua chunk; i.e. a Lua compilation unit, defined as a list of
 -- statements. This is the grammar you should use to parse real Lua code.
