@@ -71,7 +71,7 @@ data Statement a
     | Label          !a !(Ident a)                                                                    -- ^ @::label::@
     | Break          !a                                                                               -- ^ @__break__@
     | Goto           !a !(Ident a)                                                                    -- ^ @__goto__ label@
-    | Do             !a !(Block a)                                                                    -- ^ @__do__ /block/@
+    | Do             !a !(Block a)                                                                    -- ^ @__do__ /block/ __end__@
     | While          !a !(Expression a) !(Block a)                                                    -- ^ @__while__ /exp/ __do__ /block/ __end__@
     | Repeat         !a !(Block a) !(Expression a)                                                    -- ^ @__repeat__ /block/ __until__ /exp/@
     | If             !a !(NonEmpty (Expression a, Block a)) !(Maybe (Block a))                        -- ^ @__if__ /exp/ __then__ /block/ __else__ /block/ __end__@

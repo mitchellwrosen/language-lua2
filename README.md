@@ -1,4 +1,4 @@
-Lua 5.3 parser and pretty-printer. Parsed nodes include source location 
+Lua 5.3 parser and pretty-printer. Parsed nodes include source location
 and token information to allow all types of types of analysis, including style-checking.
 
 Similar to https://hackage.haskell.org/package/language-lua, but:

@@ -10,6 +10,8 @@ module Language.Lua.Parser
     , luaStatement
     , luaExpression
     , NodeInfo(..)
+    , nodeLoc
+    , nodeTokens
 
     -- * <https://hackage.haskell.org/package/Earley Earley> re-exports
     -- | These are provided if you want more control over parsing than what
@@ -48,13 +50,19 @@ import           Text.Printf         (printf)
 -- protocol, alignment, trailing commas on table constructors, and whatever
 -- other subjectivities.
 data NodeInfo = NodeInfo
-    { nodeLoc    :: !Loc             -- ^ Source location; spans the entirety of the node.
-    , nodeTokens :: !(Seq (L Token)) -- ^ Parsed tokens involved in node production.
+    { _nodeLoc    :: !Loc             -- ^ Source location; spans the entirety of the node.
+    , _nodeTokens :: !(Seq (L Token)) -- ^ Parsed tokens involved in node production.
     } deriving (Data, Eq, Generic, Show, Typeable)
 
 instance Monoid NodeInfo where
     mempty = NodeInfo mempty mempty
     mappend (NodeInfo x1 y1) (NodeInfo x2 y2) = NodeInfo (x1 <> x2) (y1 <> y2)
+
+nodeLoc :: Lens' NodeInfo Loc
+nodeLoc = lens (\(NodeInfo a _) -> a) (\(NodeInfo _ b) a -> NodeInfo a b)
+
+nodeTokens :: Lens' NodeInfo (Seq (L Token))
+nodeTokens = lens (\(NodeInfo _ b) -> b) (\(NodeInfo a _) b -> NodeInfo a b)
 
 class HasNodeInfo a where
     nodeInfo :: a -> NodeInfo
@@ -521,13 +529,13 @@ mkGoto :: L Token -> Ident NodeInfo -> Statement NodeInfo
 mkGoto a b = Goto (nodeInfo a <> nodeInfo b) b
 
 mkDo :: L Token -> Block NodeInfo -> L Token -> Statement NodeInfo
-mkDo a b c = Do (nodeInfo a <> nodeInfo b <> nodeInfo c) b
+mkDo a b c = Do (nodeInfo a <> nodeInfo b <> nodeInfo c) (injectLoc a b)
 
 mkWhile :: L Token -> Expression NodeInfo -> L Token -> Block NodeInfo -> L Token -> Statement NodeInfo
-mkWhile a b c d e = While (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e) b d
+mkWhile a b c d e = While (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e) b (injectLoc c d)
 
 mkRepeat :: L Token -> Block NodeInfo -> L Token -> Expression NodeInfo -> Statement NodeInfo
-mkRepeat a b c d = Repeat (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d) b d
+mkRepeat a b c d = Repeat (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d) (injectLoc a b) d
 
 mkIf
     :: L Token
@@ -540,8 +548,8 @@ mkIf
     -> Statement NodeInfo
 mkIf a b c d e f g =
     If (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e <> nodeInfo f <> nodeInfo g)
-       ((b,d) :| map (\(_,x,_,y) -> (x,y)) e)
-       (snd <$> f)
+       ((b, injectLoc c d) :| map (\(_,x,y,z) -> (x, injectLoc y z)) e)
+       (uncurry injectLoc <$> f)
 
 mkFor
     :: L Token
@@ -555,7 +563,7 @@ mkFor
     -> Block NodeInfo
     -> L Token
     -> Statement NodeInfo
-mkFor a b c d e f g h i j = For ni b d f (snd <$> g) i
+mkFor a b c d e f g h i j = For ni b d f (snd <$> g) (injectLoc h i)
   where
     ni :: NodeInfo
     ni = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e <>
@@ -570,7 +578,7 @@ mkForIn
     -> Block NodeInfo
     -> L Token
     -> Statement NodeInfo
-mkForIn a b c d e f g = ForIn ni b d f
+mkForIn a b c d e f g = ForIn ni b d (injectLoc e f)
   where
     ni :: NodeInfo
     ni = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <>
@@ -683,10 +691,14 @@ mkFunctionBody
     -> Block NodeInfo
     -> L Token
     -> FunctionBody NodeInfo
-mkFunctionBody a b (Just (c,d)) e f g =
-    FunctionBody (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e <> nodeInfo f <> nodeInfo g) b True f
-mkFunctionBody a b Nothing c d e =
-    FunctionBody (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e) b False d
+mkFunctionBody a b (Just (c,d)) e f g = FunctionBody ni b True (injectLoc e f)
+  where
+    ni = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <>
+         nodeInfo e <> nodeInfo f <> nodeInfo g
+mkFunctionBody a b Nothing c d e = FunctionBody ni b False (injectLoc c d)
+  where
+    ni = nodeInfo a <> nodeInfo b <> nodeInfo c <>
+         nodeInfo d <> nodeInfo e
 
 mkFunctionBodyVararg :: L Token -> L Token -> L Token -> Block NodeInfo -> L Token -> FunctionBody NodeInfo
 mkFunctionBodyVararg a b c d e = FunctionBodyVararg (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e) d
@@ -705,6 +717,16 @@ mkField a = Field (nodeInfo a) a
 
 mkFieldList :: (NodeInfo, NonEmpty (Field NodeInfo)) -> Maybe (L Token) -> FieldList NodeInfo
 mkFieldList a b = FieldList (nodeInfo a <> nodeInfo b) (NE.toList (snd a))
+
+-- Inspect a block to see if it contains a location or not; if not (i.e. it's
+-- completely empty, as in "do end", we simply set its location to where it
+-- would have been (the end of the preceding token). This is so a client can
+-- report the location of an empty block as a warning, if they so desire.
+injectLoc :: L Token -> Block NodeInfo -> Block NodeInfo
+injectLoc a b =
+    case b^.ann.nodeLoc of
+        NoLoc -> b & ann.nodeLoc .~ locEnd (locOf a)
+        _     -> b
 
 --------------------------------------------------------------------------------
 -- Combinators
