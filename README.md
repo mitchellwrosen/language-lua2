@@ -7,4 +7,14 @@ Similar to https://hackage.haskell.org/package/language-lua, but:
 - Simpler code (I hope) with a more declarative parser
 - AST annotated with token lists for style-checking analysis
 
-GitHub-hosted haddocks: http://mitchellwrosen.github.io/language-lua/
+##### Building
+
+    stack build
+
+##### Testing 
+    
+    stack test
+
+##### Documentation
+
+http://mitchellwrosen.github.io/language-lua/
