@@ -102,6 +102,10 @@ module Language.Lua.Syntax
 data Ident a
 Ident :: !a -> !String -> Ident a
 
+-- | Zero or more <a>Ident</a>s.
+data IdentList a
+IdentList :: !a -> ![Ident a] -> IdentList a
+
 -- | One or more <a>Ident</a>s.
 data IdentList1 a
 IdentList1 :: !a -> !(NonEmpty (Ident a)) -> IdentList1 a
@@ -290,12 +294,7 @@ data FunctionBody a
 -- | <pre>
 --   (x, y, ...) <i>block</i> <b>end</b>
 --   </pre>
-FunctionBody :: !a -> !(IdentList1 a) -> !Bool -> !(Block a) -> FunctionBody a
-
--- | <pre>
---   (...) <i>block</i> <b>end</b>
---   </pre>
-FunctionBodyVararg :: !a -> !(Block a) -> FunctionBody a
+FunctionBody :: !a -> !(IdentList a) -> !Bool -> !(Block a) -> FunctionBody a
 
 -- | A table constructor.
 --   
@@ -446,7 +445,6 @@ instance GHC.Generics.Constructor Language.Lua.Syntax.C1_0ReturnStatement
 instance GHC.Generics.Datatype Language.Lua.Syntax.D1ReturnStatement
 instance GHC.Generics.Constructor Language.Lua.Syntax.C1_0Block
 instance GHC.Generics.Datatype Language.Lua.Syntax.D1Block
-instance GHC.Generics.Constructor Language.Lua.Syntax.C1_1FunctionBody
 instance GHC.Generics.Constructor Language.Lua.Syntax.C1_0FunctionBody
 instance GHC.Generics.Datatype Language.Lua.Syntax.D1FunctionBody
 instance GHC.Generics.Constructor Language.Lua.Syntax.C1_2Field
@@ -500,6 +498,8 @@ instance GHC.Generics.Constructor Language.Lua.Syntax.C1_0FunctionName
 instance GHC.Generics.Datatype Language.Lua.Syntax.D1FunctionName
 instance GHC.Generics.Constructor Language.Lua.Syntax.C1_0IdentList1
 instance GHC.Generics.Datatype Language.Lua.Syntax.D1IdentList1
+instance GHC.Generics.Constructor Language.Lua.Syntax.C1_0IdentList
+instance GHC.Generics.Datatype Language.Lua.Syntax.D1IdentList
 instance GHC.Generics.Constructor Language.Lua.Syntax.C1_0Ident
 instance GHC.Generics.Datatype Language.Lua.Syntax.D1Ident
 instance GHC.Show.Show a => GHC.Show.Show (Language.Lua.Syntax.VariableList1 a)
@@ -597,6 +597,11 @@ instance GHC.Generics.Generic (Language.Lua.Syntax.IdentList1 a)
 instance GHC.Base.Functor Language.Lua.Syntax.IdentList1
 instance GHC.Classes.Eq a => GHC.Classes.Eq (Language.Lua.Syntax.IdentList1 a)
 instance Data.Data.Data a => Data.Data.Data (Language.Lua.Syntax.IdentList1 a)
+instance GHC.Show.Show a => GHC.Show.Show (Language.Lua.Syntax.IdentList a)
+instance GHC.Generics.Generic (Language.Lua.Syntax.IdentList a)
+instance GHC.Base.Functor Language.Lua.Syntax.IdentList
+instance GHC.Classes.Eq a => GHC.Classes.Eq (Language.Lua.Syntax.IdentList a)
+instance Data.Data.Data a => Data.Data.Data (Language.Lua.Syntax.IdentList a)
 instance GHC.Show.Show a => GHC.Show.Show (Language.Lua.Syntax.Ident a)
 instance GHC.Generics.Generic (Language.Lua.Syntax.Ident a)
 instance GHC.Base.Functor Language.Lua.Syntax.Ident
@@ -618,6 +623,7 @@ instance Text.PrettyPrint.Leijen.Pretty (Language.Lua.Syntax.Field a)
 instance Text.PrettyPrint.Leijen.Pretty (Language.Lua.Syntax.Binop a)
 instance Text.PrettyPrint.Leijen.Pretty (Language.Lua.Syntax.Unop a)
 instance Language.Lua.Syntax.Annotated Language.Lua.Syntax.Ident
+instance Language.Lua.Syntax.Annotated Language.Lua.Syntax.IdentList
 instance Language.Lua.Syntax.Annotated Language.Lua.Syntax.IdentList1
 instance Language.Lua.Syntax.Annotated Language.Lua.Syntax.Block
 instance Language.Lua.Syntax.Annotated Language.Lua.Syntax.Statement
@@ -761,7 +767,8 @@ TkGeq :: Token
 -- | &lt;
 TkLt :: Token
 
--- | &gt;
+-- | <pre>
+--   </pre>
 TkGt :: Token
 
 -- | =
@@ -806,9 +813,6 @@ TkDoubleDot :: Token
 -- | ...
 TkTripleDot :: Token
 
--- | _
-TkUnderscore :: Token
-
 -- | '
 TkQuote :: Token
 
@@ -818,7 +822,6 @@ TkIdent :: String -> Token
 TkStringLit :: String -> Token
 TkIntLit :: String -> Token
 TkFloatLit :: String -> Token
-instance GHC.Generics.Constructor Language.Lua.Token.C1_61Token
 instance GHC.Generics.Constructor Language.Lua.Token.C1_60Token
 instance GHC.Generics.Constructor Language.Lua.Token.C1_59Token
 instance GHC.Generics.Constructor Language.Lua.Token.C1_58Token
