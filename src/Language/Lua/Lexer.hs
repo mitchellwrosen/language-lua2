@@ -93,7 +93,6 @@ luaToken =
     <|> TkDoubleDot    <$ ".."
     <|> TkTripleDot    <$ "..."
     <|> TkTilde        <$ "~"
-    <|> TkUnderscore   <$ "_"
     <|> TkQuote        <$ "'"
     <|> TkDoubleQuote  <$ "\""
     <|> TkIdent        <$> luaIdentifier

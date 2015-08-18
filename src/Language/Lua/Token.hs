@@ -44,7 +44,7 @@ data Token
     | TkLeq              -- ^ <=
     | TkGeq              -- ^ \>=
     | TkLt               -- ^ <
-    | TkGt               -- ^ \>
+    | TkGt               -- ^ >
     | TkEq               -- ^ =
     | TkLParen           -- ^ (
     | TkRParen           -- ^ )
@@ -59,7 +59,6 @@ data Token
     | TkDot              -- ^ .
     | TkDoubleDot        -- ^ ..
     | TkTripleDot        -- ^ ...
-    | TkUnderscore       -- ^ _
     | TkQuote            -- ^ '
     | TkDoubleQuote      -- ^ "
     | TkIdent String

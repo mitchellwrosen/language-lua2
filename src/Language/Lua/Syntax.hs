@@ -4,6 +4,7 @@
 module Language.Lua.Syntax
     ( -- * AST nodes
       Ident(..)
+    , IdentList(..)
     , IdentList1(..)
     , Chunk
     , Block(..)
@@ -42,6 +43,11 @@ import Text.PrettyPrint.Leijen
 -- <http://www.lua.org/manual/5.3/manual.html#3.1>
 data Ident a
     = Ident !a !String
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
+
+-- | Zero or more 'Ident's.
+data IdentList a
+    = IdentList !a ![Ident a]
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 -- | One or more 'Ident's.
@@ -154,8 +160,7 @@ data FunctionArgs a
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data FunctionBody a
-    = FunctionBody !a !(IdentList1 a) !Bool !(Block a) -- ^ @(x, y, ...) /block/ __end__@
-    | FunctionBodyVararg !a !(Block a)                 -- ^ @(...) /block/ __end__@
+    = FunctionBody !a !(IdentList a) !Bool !(Block a) -- ^ @(x, y, ...) /block/ __end__@
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 -- | A table constructor.
@@ -307,18 +312,14 @@ instance Pretty (FunctionArgs a) where
     pretty (ArgsString _ s)               = dquotes (string s)
 
 instance Pretty (FunctionBody a) where
-    pretty (FunctionBody _ (IdentList1 _ (i:|is)) va b) =
-            encloseSep lparen rhs (text ", ") (map pretty (i:is))
+    pretty (FunctionBody _ (IdentList _ is) va b) =
+            encloseSep lparen rhs (text ", ") (map pretty is)
         <$> indent 4 (pretty b)
         <$> text "end"
       where
         rhs = if va
                   then comma <+> text "..." <> rparen
                   else rparen
-    pretty (FunctionBodyVararg _ b) =
-            text "(...)"
-        <$> indent 4 (pretty b)
-        <$> text "end"
 
 instance Pretty (TableConstructor a) where
     pretty (TableConstructor _ (FieldList _ []))  = lbrace <+> rbrace
@@ -373,6 +374,9 @@ class Functor ast => Annotated ast where
 
 instance Annotated Ident where
     ann = lens (\(Ident a _) -> a) (\(Ident _ b) a -> Ident a b)
+
+instance Annotated IdentList where
+    ann = lens (\(IdentList a _) -> a) (\(IdentList _ b) a -> IdentList a b)
 
 instance Annotated IdentList1 where
     ann = lens (\(IdentList1 a _) -> a) (\(IdentList1 _ b) a -> IdentList1 a b)
@@ -500,13 +504,7 @@ instance Annotated FunctionArgs where
         g (ArgsString _ b) a = ArgsString a b
 
 instance Annotated FunctionBody where
-    ann = lens f g
-      where
-        f (FunctionBody a _ _ _)   = a
-        f (FunctionBodyVararg a _) = a
-
-        g (FunctionBody _ b c d)   a = FunctionBody a b c d
-        g (FunctionBodyVararg _ b) a = FunctionBodyVararg a b
+    ann = lens (\(FunctionBody a _ _ _) -> a) (\(FunctionBody _ b c d) a -> FunctionBody a b c d)
 
 instance Annotated TableConstructor where
     ann = lens (\(TableConstructor a _) -> a) (\(TableConstructor _ b) a -> TableConstructor a b)

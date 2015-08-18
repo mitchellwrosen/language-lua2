@@ -323,6 +323,9 @@ grammar = mdo
             <*> dot
             <*> ident
 
+    identList :: Prod r String (L Token) (IdentList NodeInfo) <-
+        uncurry IdentList <$$> sepBy ident comma
+
     identList1 :: Prod r String (L Token) (IdentList1 NodeInfo) <-
         uncurry IdentList1 <$$> sepBy1 ident comma
 
@@ -377,16 +380,10 @@ grammar = mdo
     functionBody :: Prod r String (L Token) (FunctionBody NodeInfo) <- rule $
             mkFunctionBody
             <$> lparen
-            <*> identList1
+            <*> identList
             <*> optional ((,)
                 <$> comma
                 <*> tripleDot)
-            <*> rparen
-            <*> block
-            <*> end
-        <|> mkFunctionBodyVararg
-            <$> lparen
-            <*> tripleDot
             <*> rparen
             <*> block
             <*> end
@@ -505,7 +502,7 @@ grammar = mdo
     tk2unop tk@(L _ TkHash)  = Length     (nodeInfo tk)
     tk2unop tk@(L _ TkDash)  = Negate     (nodeInfo tk)
     tk2unop tk@(L _ TkTilde) = BitwiseNot (nodeInfo tk)
-    tk2unop (L _ tk)           = error $ printf "Token %s does not correspond to a unary op" (show tk)
+    tk2unop (L _ tk)         = error $ printf "Token %s does not correspond to a unary op" (show tk)
 
 mkBlock :: [Statement NodeInfo] -> Maybe (ReturnStatement NodeInfo) -> Block NodeInfo
 mkBlock a b = Block (nodeInfo a <> nodeInfo b) a b
@@ -685,7 +682,7 @@ mkArgsString tk = error $ printf "mkArgsString: %s is not a TkStringLit" (show t
 
 mkFunctionBody
     :: L Token
-    -> IdentList1 NodeInfo
+    -> IdentList NodeInfo
     -> Maybe (L Token, L Token)
     -> L Token
     -> Block NodeInfo
@@ -699,9 +696,6 @@ mkFunctionBody a b Nothing c d e = FunctionBody ni b False (injectLoc c d)
   where
     ni = nodeInfo a <> nodeInfo b <> nodeInfo c <>
          nodeInfo d <> nodeInfo e
-
-mkFunctionBodyVararg :: L Token -> L Token -> L Token -> Block NodeInfo -> L Token -> FunctionBody NodeInfo
-mkFunctionBodyVararg a b c d e = FunctionBodyVararg (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e) d
 
 mkTableConstructor :: L Token -> Maybe (FieldList NodeInfo) -> L Token -> TableConstructor NodeInfo
 mkTableConstructor a b c = TableConstructor (nodeInfo a <> nodeInfo b <> nodeInfo c) (fromMaybe (FieldList mempty []) b)
