@@ -40,6 +40,10 @@ instance Arbitrary a => Arbitrary (Ident a) where
                    , "not", "or", "repeat", "return", "then", "true", "until", "while"
                    ]
 
+instance Arbitrary a => Arbitrary (IdentList a) where
+    arbitrary = IdentList <$> arbitrary <*> arbitrary
+    shrink = genericShrink
+
 instance Arbitrary a => Arbitrary (IdentList1 a) where
     arbitrary = IdentList1 <$> arbitrary <*> arbitrary
     shrink = genericShrink
