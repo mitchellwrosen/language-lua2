@@ -32,6 +32,7 @@ import Language.Lua.Token
 import           Control.Applicative
 import           Control.Exception   (Exception, mapException, throw)
 import           Data.Data
+import           Data.List           (intercalate)
 import           Data.List.NonEmpty  (NonEmpty((:|)))
 import qualified Data.List.NonEmpty  as NE
 import           Data.Loc
@@ -103,18 +104,41 @@ type LuaGrammar f = forall r. Grammar r String (Prod r String (L Token) (f NodeI
 
 data LuaParseException
     = LuaLexException !Pos
-    | LuaParseException !(Report String [L Token])
-    | LuaAmbiguousParseException !(Report String [L Token])
+    | LuaParseException !FilePath !(Report String [L Token])
+    | LuaAmbiguousParseException !FilePath !(Report String [L Token])
     deriving (Eq, Typeable)
 
 instance Show LuaParseException where
-    show (LuaLexException pos) = "oink Lexical error at " ++ displayPos pos
-    show (LuaParseException r) = "Parse exception: " ++ show r
-    show (LuaAmbiguousParseException r) =
-            "The 'impossible' happened: ambiguous parse. See "
-         ++ "<http://www.lua.org/manual/5.3/manual.html#3.3.1> for a likely explanation. "
-         ++ "Parse report:\n"
-         ++ show r
+    show e =
+        case e of
+            LuaLexException pos -> "Unexpected token at " ++ displayPos pos
+            LuaParseException filename r ->
+                case r of
+                    Report _ xs [] -> unlines
+                        [ filename ++ ":"
+                        , "    Expected one of: " ++ intercalate ", " xs
+                        , "    But found: <EOF>"
+                        ]
+                    Report _ xs (L (Loc p _) tk : _) -> unlines
+                        [ displayPos p ++ ":"
+                        , "    Expected one of: " ++ intercalate ", " xs
+                        , "    But found: '" ++ showToken tk ++ "'"
+                        ]
+            LuaAmbiguousParseException filename r ->
+                let s = "Ambiguous parse. See <http://www.lua.org/manual/5.3/manual.html#3.3.1> for a likely explanation.\n"
+                in case r of
+                       Report _ xs [] -> unlines
+                           [ filename ++ ":"
+                           , "    " ++ s
+                           , "    Expected one of: " ++ intercalate ", " xs
+                           , "    But found: <EOF>"
+                           ]
+                       Report _ xs (L (Loc p _) tk : _) -> unlines
+                           [ displayPos p ++ ":"
+                           , "    " ++ s
+                           , "    Expected one of: " ++ intercalate ", " xs
+                           , "    But found: '" ++ showToken tk ++ "'"
+                           ]
 
 instance Exception LuaParseException
 
@@ -168,8 +192,8 @@ parseLuaWith g filename contents =
     let tokens = streamToList' (runLexer luaLexer filename contents)
     in case fullParses (parser g tokens) of
            ([x], _) -> x
-           ([],  r) -> throw (LuaParseException r)
-           (_,   r) -> throw (LuaAmbiguousParseException r)
+           ([],  r) -> throw (LuaParseException filename r)
+           (_,   r) -> throw (LuaAmbiguousParseException filename r)
   where
     -- Wrap a LexicalError in our own LuaParseException.
     streamToList' :: forall tok. TokenStream tok -> [tok]
@@ -212,14 +236,14 @@ grammar = mdo
             <$> semi
         <|> mkAssign
             <$> varList1
-            <*> eq
+            <*> assign
             <*> expressionList1
         <|> mkFunCall
             <$> functionCall
         <|> mkLabel
-            <$> doubleColon
+            <$> label
             <*> ident
-            <*> doubleColon
+            <*> label
         <|> mkBreak
             <$> break
         <|> mkGoto
@@ -257,7 +281,7 @@ grammar = mdo
         <|> mkFor
             <$> for
             <*> ident
-            <*> eq
+            <*> assign
             <*> expression
             <*> comma
             <*> expression
@@ -288,7 +312,7 @@ grammar = mdo
             <$> local
             <*> identList1
             <*> optional ((,)
-                <$> eq
+                <$> assign
                 <*> expressionList1)
 
     returnStatement :: Prod r String (L Token) (ReturnStatement NodeInfo) <- rule $
@@ -345,7 +369,7 @@ grammar = mdo
         <|> mkInteger    <$> intLit
         <|> mkFloat      <$> floatLit
         <|> mkString     <$> stringLit
-        <|> mkVararg     <$> tripleDot
+        <|> mkVararg     <$> vararg
         <|> mkPrefixExp  <$> prefixExpression
         <|> mkTableCtor  <$> tableConstructor
 
@@ -383,7 +407,7 @@ grammar = mdo
             <*> identList
             <*> optional ((,)
                 <$> comma
-                <*> tripleDot)
+                <*> vararg)
             <*> rparen
             <*> block
             <*> end
@@ -399,11 +423,11 @@ grammar = mdo
             <$> lbracket
             <*> expression
             <*> rbracket
-            <*> eq
+            <*> assign
             <*> expression
         <|> mkFieldIdent
             <$> ident
-            <*> eq
+            <*> assign
             <*> expression
         <|> mkField
             <$> expression
@@ -416,42 +440,42 @@ grammar = mdo
     -- http://www.lua.org/manual/5.3/manual.html#3.4.8
     expressionTable :: [[([Maybe (Prod r String (L Token) (L Token))], Associativity)]]
     expressionTable =
-        [ [ (binop TkOr           "or",  LeftAssoc)  ]
+        [ [ (binop TkOr           "'or'",  LeftAssoc)  ]
 
-        , [ (binop TkAnd          "and", LeftAssoc)  ]
+        , [ (binop TkAnd          "'and'", LeftAssoc)  ]
 
-        , [ (binop TkLt           "<",   LeftAssoc)
-          , (binop TkGt           ">",   LeftAssoc)
-          , (binop TkLeq          "<=",  LeftAssoc)
-          , (binop TkGeq          ">=",  LeftAssoc)
-          , (binop TkNeq          "~=",  LeftAssoc)
-          , (binop TkDoubleEq     "==",  LeftAssoc)  ]
+        , [ (binop TkLt           "'<'",   LeftAssoc)
+          , (binop TkGt           "'>'",   LeftAssoc)
+          , (binop TkLeq          "'<='",  LeftAssoc)
+          , (binop TkGeq          "'>='",  LeftAssoc)
+          , (binop TkNeq          "'~='",  LeftAssoc)
+          , (binop TkEq           "'=='",  LeftAssoc)  ]
 
-        , [ (binop TkPipe         "|",   LeftAssoc)  ]
+        , [ (binop TkBitwiseOr    "'|'",   LeftAssoc)  ]
 
-        , [ (binop TkTilde        "~",   LeftAssoc)  ]
+        , [ (binop TkTilde        "'~'",   LeftAssoc)  ]
 
-        , [ (binop TkAmp          "&",   LeftAssoc)  ]
+        , [ (binop TkBitwiseAnd   "'&'",   LeftAssoc)  ]
 
-        , [ (binop TkLShift       "<<",  LeftAssoc)
-          , (binop TkRShift       ">>",  LeftAssoc)  ]
+        , [ (binop TkLShift       "'<<'",  LeftAssoc)
+          , (binop TkRShift       "'>>'",  LeftAssoc)  ]
 
-        , [ (binop TkDoubleDot    "..",  RightAssoc) ]
+        , [ (binop TkConcat       "'..'",  RightAssoc) ]
 
-        , [ (binop TkPlus         "+",   LeftAssoc)
-          , (binop TkDash         "-",   LeftAssoc)  ]
+        , [ (binop TkPlus         "'+'",   LeftAssoc)
+          , (binop TkDash         "'-'",   LeftAssoc)  ]
 
-        , [ (binop TkStar         "*",   LeftAssoc)
-          , (binop TkFslash       "/",   LeftAssoc)
-          , (binop TkDoubleFslash "//",  LeftAssoc)
-          , (binop TkPct          "%",   LeftAssoc)  ]
+        , [ (binop TkMult         "'*'",   LeftAssoc)
+          , (binop TkFloatDiv     "'/'",   LeftAssoc)
+          , (binop TkFloorDiv     "'//'",  LeftAssoc)
+          , (binop TkModulo       "'%'",   LeftAssoc)  ]
 
-        , [ unop   TkNot          "not"
-          , unop   TkHash         "#"
-          , unop   TkDash         "-"
-          , unop   TkTilde        "~"                ]
+        , [ unop   TkNot          "'not'"
+          , unop   TkLength       "'#'"
+          , unop   TkDash         "'-'"
+          , unop   TkTilde        "'~'"                ]
 
-        , [ (binop TkCarrot       "^",   RightAssoc) ]
+        , [ (binop TkExponent     "'^'",   RightAssoc) ]
         ]
       where
         binop :: Token -> String -> [Maybe (Prod r String (L Token) (L Token))]
@@ -474,35 +498,35 @@ grammar = mdo
     viewUnop _ = Nothing
 
     tk2binop :: L Token -> Binop NodeInfo
-    tk2binop tk@(L _ TkPlus)         = Plus       (nodeInfo tk)
-    tk2binop tk@(L _ TkDash)         = Minus      (nodeInfo tk)
-    tk2binop tk@(L _ TkStar)         = Mult       (nodeInfo tk)
-    tk2binop tk@(L _ TkFslash)       = FloatDiv   (nodeInfo tk)
-    tk2binop tk@(L _ TkDoubleFslash) = FloorDiv   (nodeInfo tk)
-    tk2binop tk@(L _ TkCarrot)       = Exponent   (nodeInfo tk)
-    tk2binop tk@(L _ TkPct)          = Modulo     (nodeInfo tk)
-    tk2binop tk@(L _ TkAmp)          = BitwiseAnd (nodeInfo tk)
-    tk2binop tk@(L _ TkTilde)        = BitwiseXor (nodeInfo tk)
-    tk2binop tk@(L _ TkPipe)         = BitwiseOr  (nodeInfo tk)
-    tk2binop tk@(L _ TkRShift)       = Rshift     (nodeInfo tk)
-    tk2binop tk@(L _ TkLShift)       = Lshift     (nodeInfo tk)
-    tk2binop tk@(L _ TkDoubleDot)    = Concat     (nodeInfo tk)
-    tk2binop tk@(L _ TkLt)           = Lt         (nodeInfo tk)
-    tk2binop tk@(L _ TkLeq)          = Leq        (nodeInfo tk)
-    tk2binop tk@(L _ TkGt)           = Gt         (nodeInfo tk)
-    tk2binop tk@(L _ TkGeq)          = Geq        (nodeInfo tk)
-    tk2binop tk@(L _ TkDoubleEq)     = Eq         (nodeInfo tk)
-    tk2binop tk@(L _ TkNeq)          = Neq        (nodeInfo tk)
-    tk2binop tk@(L _ TkAnd)          = And        (nodeInfo tk)
-    tk2binop tk@(L _ TkOr)           = Or         (nodeInfo tk)
-    tk2binop (L _ tk)                = error $ printf "Token %s does not correspond to a binary op" (show tk)
+    tk2binop tk@(L _ TkPlus)       = Plus       (nodeInfo tk)
+    tk2binop tk@(L _ TkDash)       = Minus      (nodeInfo tk)
+    tk2binop tk@(L _ TkMult)       = Mult       (nodeInfo tk)
+    tk2binop tk@(L _ TkFloatDiv)   = FloatDiv   (nodeInfo tk)
+    tk2binop tk@(L _ TkFloorDiv)   = FloorDiv   (nodeInfo tk)
+    tk2binop tk@(L _ TkExponent)   = Exponent   (nodeInfo tk)
+    tk2binop tk@(L _ TkModulo)     = Modulo     (nodeInfo tk)
+    tk2binop tk@(L _ TkBitwiseAnd) = BitwiseAnd (nodeInfo tk)
+    tk2binop tk@(L _ TkTilde)      = BitwiseXor (nodeInfo tk)
+    tk2binop tk@(L _ TkBitwiseOr)  = BitwiseOr  (nodeInfo tk)
+    tk2binop tk@(L _ TkRShift)     = Rshift     (nodeInfo tk)
+    tk2binop tk@(L _ TkLShift)     = Lshift     (nodeInfo tk)
+    tk2binop tk@(L _ TkConcat)     = Concat     (nodeInfo tk)
+    tk2binop tk@(L _ TkLt)         = Lt         (nodeInfo tk)
+    tk2binop tk@(L _ TkLeq)        = Leq        (nodeInfo tk)
+    tk2binop tk@(L _ TkGt)         = Gt         (nodeInfo tk)
+    tk2binop tk@(L _ TkGeq)        = Geq        (nodeInfo tk)
+    tk2binop tk@(L _ TkEq)         = Eq         (nodeInfo tk)
+    tk2binop tk@(L _ TkNeq)        = Neq        (nodeInfo tk)
+    tk2binop tk@(L _ TkAnd)        = And        (nodeInfo tk)
+    tk2binop tk@(L _ TkOr)         = Or         (nodeInfo tk)
+    tk2binop (L _ tk)              = error $ printf "Token %s does not correspond to a binary op" (show tk)
 
     tk2unop :: L Token -> Unop NodeInfo
-    tk2unop tk@(L _ TkNot)   = Not        (nodeInfo tk)
-    tk2unop tk@(L _ TkHash)  = Length     (nodeInfo tk)
-    tk2unop tk@(L _ TkDash)  = Negate     (nodeInfo tk)
-    tk2unop tk@(L _ TkTilde) = BitwiseNot (nodeInfo tk)
-    tk2unop (L _ tk)         = error $ printf "Token %s does not correspond to a unary op" (show tk)
+    tk2unop tk@(L _ TkNot)    = Not        (nodeInfo tk)
+    tk2unop tk@(L _ TkLength) = Length     (nodeInfo tk)
+    tk2unop tk@(L _ TkDash)   = Negate     (nodeInfo tk)
+    tk2unop tk@(L _ TkTilde)  = BitwiseNot (nodeInfo tk)
+    tk2unop (L _ tk)          = error $ printf "Token %s does not correspond to a unary op" (show tk)
 
 mkBlock :: [Statement NodeInfo] -> Maybe (ReturnStatement NodeInfo) -> Block NodeInfo
 mkBlock a b = Block (nodeInfo a <> nodeInfo b) a b
@@ -748,128 +772,128 @@ sepBy1 f sep = mdo
 -- Token productions
 
 break :: Prod r String (L Token) (L Token)
-break = locSymbol TkBreak <?> "break"
+break = locSymbol TkBreak <?> "'break'"
 
 colon :: Prod r String (L Token) (L Token)
-colon = locSymbol TkColon <?> ":"
+colon = locSymbol TkColon <?> "':'"
 
 comma :: Prod r String (L Token) (L Token)
-comma = locSymbol TkComma <?> ","
+comma = locSymbol TkComma <?> "','"
 
 do' :: Prod r String (L Token) (L Token)
-do' = locSymbol TkDo <?> "do"
+do' = locSymbol TkDo <?> "'do'"
 
 dot :: Prod r String (L Token) (L Token)
-dot = locSymbol TkDot <?> "dot"
+dot = locSymbol TkDot <?> "'.'"
 
-doubleColon :: Prod r String (L Token) (L Token)
-doubleColon = locSymbol TkDoubleColon <?> "::"
+label :: Prod r String (L Token) (L Token)
+label = locSymbol TkLabel <?> "'::'"
 
 else' :: Prod r String (L Token) (L Token)
-else' = locSymbol TkElse <?> "else"
+else' = locSymbol TkElse <?> "'else'"
 
 elseif :: Prod r String (L Token) (L Token)
-elseif = locSymbol TkElseif <?> "elseif"
+elseif = locSymbol TkElseif <?> "'elseif'"
 
 end :: Prod r String (L Token) (L Token)
-end = locSymbol TkEnd <?> "end"
+end = locSymbol TkEnd <?> "'end'"
 
-eq :: Prod r String (L Token) (L Token)
-eq = locSymbol TkEq <?> "="
+assign :: Prod r String (L Token) (L Token)
+assign = locSymbol TkAssign <?> "'='"
 
 false :: Prod r String (L Token) (L Token)
-false = locSymbol TkFalse <?> "false"
+false = locSymbol TkFalse <?> "'false'"
 
 floatLit :: Prod r String (L Token) (L Token)
-floatLit = locSatisfy isFloatLit <?> "float literal"
+floatLit = locSatisfy isFloatLit <?> "float"
   where
     isFloatLit :: Token -> Bool
     isFloatLit (TkFloatLit _) = True
     isFloatLit _ = False
 
 for :: Prod r String (L Token) (L Token)
-for = locSymbol TkFor <?> "for"
+for = locSymbol TkFor <?> "'for'"
 
 function :: Prod r String (L Token) (L Token)
-function = locSymbol TkFunction <?> "function"
+function = locSymbol TkFunction <?> "'function'"
 
 goto :: Prod r String (L Token) (L Token)
-goto = locSymbol TkGoto <?> "goto"
+goto = locSymbol TkGoto <?> "'goto'"
 
 ident :: Prod r String (L Token) (Ident NodeInfo)
-ident = (\tk@(L _ (TkIdent s)) -> Ident (nodeInfo tk) s) <$> locSatisfy isIdent <?> "ident"
+ident = (\tk@(L _ (TkIdent s)) -> Ident (nodeInfo tk) s) <$> locSatisfy isIdent <?> "'ident'"
   where
     isIdent :: Token -> Bool
     isIdent (TkIdent _) = True
     isIdent _ = False
 
 if' :: Prod r String (L Token) (L Token)
-if' = locSymbol TkIf <?> "if"
+if' = locSymbol TkIf <?> "'if'"
 
 in' :: Prod r String (L Token) (L Token)
-in' = locSymbol TkIn <?> "in"
+in' = locSymbol TkIn <?> "'in'"
 
 intLit :: Prod r String (L Token) (L Token)
-intLit = locSatisfy isIntLit <?> "int literal"
+intLit = locSatisfy isIntLit <?> "integer"
   where
     isIntLit :: Token -> Bool
     isIntLit (TkIntLit _) = True
     isIntLit _ = False
 
 lbrace :: Prod r String (L Token) (L Token)
-lbrace = locSymbol TkLBrace <?> "{"
+lbrace = locSymbol TkLBrace <?> "'{'"
 
 lbracket :: Prod r String (L Token) (L Token)
-lbracket = locSymbol TkLBracket <?> "["
+lbracket = locSymbol TkLBracket <?> "'['"
 
 local :: Prod r String (L Token) (L Token)
-local = locSymbol TkLocal <?> "local"
+local = locSymbol TkLocal <?> "'local'"
 
 lparen :: Prod r String (L Token) (L Token)
-lparen = locSymbol TkLParen <?> "("
+lparen = locSymbol TkLParen <?> "'('"
 
 nil :: Prod r String (L Token) (L Token)
-nil = locSymbol TkNil <?> "nil"
+nil = locSymbol TkNil <?> "'nil'"
 
 rbrace :: Prod r String (L Token) (L Token)
-rbrace = locSymbol TkRBrace <?> "}"
+rbrace = locSymbol TkRBrace <?> "'}'"
 
 rbracket :: Prod r String (L Token) (L Token)
-rbracket = locSymbol TkRBracket <?> "]"
+rbracket = locSymbol TkRBracket <?> "']'"
 
 repeat :: Prod r String (L Token) (L Token)
-repeat = locSymbol TkRepeat <?> "repeat"
+repeat = locSymbol TkRepeat <?> "'repeat'"
 
 return' :: Prod r String (L Token) (L Token)
-return' = locSymbol TkReturn <?> "return"
+return' = locSymbol TkReturn <?> "'return'"
 
 rparen :: Prod r String (L Token) (L Token)
-rparen = locSymbol TkRParen <?> ")"
+rparen = locSymbol TkRParen <?> "')'"
 
 semi :: Prod r String (L Token) (L Token)
-semi = locSymbol TkSemi <?> ";"
+semi = locSymbol TkSemi <?> "';'"
 
 stringLit :: Prod r String (L Token) (L Token)
-stringLit = locSatisfy isStringLit <?> "string literal"
+stringLit = locSatisfy isStringLit <?> "string"
   where
     isStringLit :: Token -> Bool
     isStringLit (TkStringLit _) = True
     isStringLit _ = False
 
 then' :: Prod r String (L Token) (L Token)
-then' = locSymbol TkThen <?> "then"
+then' = locSymbol TkThen <?> "'then'"
 
-tripleDot :: Prod r String (L Token) (L Token)
-tripleDot = locSymbol TkTripleDot <?> "..."
+vararg :: Prod r String (L Token) (L Token)
+vararg = locSymbol TkVararg <?> "'...'"
 
 true :: Prod r String (L Token) (L Token)
-true = locSymbol TkTrue <?> "true"
+true = locSymbol TkTrue <?> "'true'"
 
 until :: Prod r String (L Token) (L Token)
-until = locSymbol TkUntil <?> "until"
+until = locSymbol TkUntil <?> "'until'"
 
 while :: Prod r String (L Token) (L Token)
-while = locSymbol TkWhile <?> "while"
+while = locSymbol TkWhile <?> "'while'"
 
 --------------------------------------------------------------------------------
 -- Earley extras

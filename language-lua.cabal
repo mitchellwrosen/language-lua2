@@ -7,14 +7,12 @@ license:                BSD3
 license-file:           LICENSE
 author:                 Mitchell Rosen
 maintainer:             mitchellwrosen@gmail.com
--- copyright:
-category:               Web
+category:               Language
 build-type:             Simple
--- extra-source-files:
 cabal-version:          >=1.10
 
 Flag exes
-  Description:          "Build executables"
+  Description:          "Build debug executables"
   Default:              False
 
 library
