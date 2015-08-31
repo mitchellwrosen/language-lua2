@@ -66,6 +66,6 @@ luaToString c = displayS (renderPretty 1.0 80 (pretty c)) ""
 
 luaFromString :: String -> Maybe (Chunk ())
 luaFromString s = either (const Nothing) Just (streamToEitherList (runLexer luaLexer "" s)) >>= \tks ->
-    case fullParses (parser luaChunk tks) of
+    case fullParses (parser luaChunk) tks of
         ([c], _) -> Just (() <$ c)
         _        -> Nothing
