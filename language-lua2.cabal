@@ -1,8 +1,8 @@
-name:                   language-lua
+name:                   language-lua2
 version:                0.1.0.0
 synopsis:               Lua parser and pretty printer
 description:            Lua parser and pretty printer
-homepage:               http://github.com/mitchellwrosen/language-lua
+homepage:               http://github.com/mitchellwrosen/language-lua2
 license:                BSD3
 license-file:           LICENSE
 author:                 Mitchell Rosen
@@ -60,7 +60,7 @@ executable parse
   build-depends:        base
                       , Earley
                       , lexer-applicative
-                      , language-lua
+                      , language-lua2
                       , optparse-applicative
                       , srcloc
                       , wl-pprint
@@ -75,19 +75,19 @@ executable lex
   main-is:              Lex.hs
   build-depends:        base
                       , lexer-applicative
-                      , language-lua
+                      , language-lua2
                       , srcloc
   default-language:     Haskell2010
   ghc-options:          -Wall
 
-test-suite language-lua-test
+test-suite language-lua2-test
   type:                 exitcode-stdio-1.0
   hs-source-dirs:       test
   main-is:              Spec.hs
   other-modules:        Instances
   build-depends:        base
                       , lexer-applicative
-                      , language-lua
+                      , language-lua2
                       , QuickCheck
                       , semigroups
                       , srcloc
@@ -101,4 +101,4 @@ test-suite language-lua-test
 
 source-repository head
   type:     git
-  location: https://github.com/mitchellwrosen/language-lua
+  location: https://github.com/mitchellwrosen/language-lua2

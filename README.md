@@ -11,10 +11,6 @@ Similar to https://hackage.haskell.org/package/language-lua, but:
 
     stack build
 
-##### Testing 
-    
+##### Testing
+
     stack test
-
-##### Documentation
-
-http://mitchellwrosen.github.io/language-lua/
