@@ -1,5 +1,5 @@
 name:                   language-lua2
-version:                0.1.0.0
+version:                0.1.0.1
 synopsis:               Lua parser and pretty printer
 description:            Lua parser and pretty printer
 homepage:               http://github.com/mitchellwrosen/language-lua2
@@ -25,7 +25,7 @@ library
   other-modules:        Language.Lua.Internal
   build-depends:        base >= 4.7 && < 5
                       , containers
-                      , Earley
+                      , Earley >= 0.10.0
                       , lexer-applicative
                       , microlens
                       , regex-applicative

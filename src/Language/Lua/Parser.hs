@@ -100,7 +100,7 @@ instance HasNodeInfo a => HasNodeInfo (NonEmpty a) where
 instance HasNodeInfo a => HasNodeInfo (Maybe a) where
     nodeInfo = foldMap nodeInfo
 
-type LuaGrammar f = forall r. Grammar r String (Prod r String (L Token) (f NodeInfo))
+type LuaGrammar f = forall r. Grammar r (Prod r String (L Token) (f NodeInfo))
 
 data LuaParseException
     = LuaLexException !Pos
@@ -190,7 +190,7 @@ parseLuaWith
     -> f NodeInfo
 parseLuaWith g filename contents =
     let tokens = streamToList' (runLexer luaLexer filename contents)
-    in case fullParses (parser g tokens) of
+    in case fullParses (parser g) tokens of
            ([x], _) -> x
            ([],  r) -> throw (LuaParseException filename r)
            (_,   r) -> throw (LuaAmbiguousParseException filename r)
@@ -221,10 +221,10 @@ luaStatement = (\(_,b,_) -> b) <$> grammar
 luaExpression :: LuaGrammar Expression
 luaExpression = (\(_,_,c) -> c) <$> grammar
 
-grammar :: Grammar r String ( Prod r String (L Token) (Block NodeInfo)
-                            , Prod r String (L Token) (Statement NodeInfo)
-                            , Prod r String (L Token) (Expression NodeInfo)
-                            )
+grammar :: Grammar r ( Prod r String (L Token) (Block NodeInfo)
+                     , Prod r String (L Token) (Statement NodeInfo)
+                     , Prod r String (L Token) (Expression NodeInfo)
+                     )
 grammar = mdo
     block :: Prod r String (L Token) (Block NodeInfo) <- rule $
         mkBlock
@@ -752,7 +752,7 @@ injectLoc a b =
 sepBy :: (HasNodeInfo a, HasNodeInfo sep)
       => Prod r e t a
       -> Prod r e t sep
-      -> Grammar r e (Prod r e t (NodeInfo, [a]))
+      -> Grammar r (Prod r e t (NodeInfo, [a]))
 sepBy f sep = do
     fs <- sepBy1 f sep
     rule $ (_2 %~ NE.toList) <$> fs
@@ -761,7 +761,7 @@ sepBy f sep = do
 sepBy1 :: forall r e t a sep. (HasNodeInfo a, HasNodeInfo sep)
        => Prod r e t a
        -> Prod r e t sep
-       -> Grammar r e (Prod r e t (NodeInfo, NonEmpty a))
+       -> Grammar r (Prod r e t (NodeInfo, NonEmpty a))
 sepBy1 f sep = mdo
     fs :: Prod r e t (NodeInfo, [a]) <-
         rule $ liftA3 (\a b (c,d) -> (nodeInfo a <> nodeInfo b <> c, b:d)) sep f fs

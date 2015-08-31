@@ -14,3 +14,7 @@ Similar to https://hackage.haskell.org/package/language-lua, but:
 ##### Testing
 
     stack test
+
+##### Documentation
+
+https://hackage.haskell.org/package/language-lua2
