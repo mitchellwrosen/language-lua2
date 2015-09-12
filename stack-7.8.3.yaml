@@ -1,0 +1,32 @@
+flags: {}
+packages:
+- '.'
+extra-deps:
+- Earley-0.10.0
+- lexer-applicative-2.1.0.1
+- microlens-0.3.4.1
+- optparse-applicative-0.11.0.2
+- regex-applicative-0.3.2.1
+- semigroups-0.16.2.2
+- srcloc-0.5.1.0
+- wl-pprint-1.2
+- ListLike-4.2.0
+- ansi-wl-pprint-0.6.7.3
+- nats-1
+- transformers-compat-0.4.0.4
+- ansi-terminal-0.6.2.3
+- dlist-0.7.1.2
+- fmlist-0.9
+- transformers-0.4.3.0
+- tasty-0.11
+- tasty-hunit-0.9.2
+- mtl-2.2.1
+- regex-tdfa-rc-1.1.8.3
+- tagged-0.8.1
+- tasty-quickcheck-0.8.3.2
+- unbounded-delays-0.1.0.9
+- parsec-3.1.9
+- regex-base-0.93.2
+- QuickCheck-2.7.6
+- tf-random-0.5
+resolver: ghc-7.8.3

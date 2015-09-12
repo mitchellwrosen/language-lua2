@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Language.Lua.Parser
     ( -- * Lua parsers
       parseLua
@@ -32,6 +34,9 @@ import Language.Lua.Token
 import           Control.Applicative
 import           Control.Exception   (Exception, mapException, throw)
 import           Data.Data
+#if !MIN_VERSION_base(4,8,0)
+import           Data.Foldable       (foldMap)
+#endif
 import           Data.List           (intercalate)
 import           Data.List.NonEmpty  (NonEmpty((:|)))
 import qualified Data.List.NonEmpty  as NE
@@ -39,6 +44,7 @@ import           Data.Loc
 import           Data.Maybe          (fromMaybe)
 import           Data.Monoid
 import           Data.Sequence       (Seq)
+import qualified Data.Sequence       as Seq
 import           GHC.Generics        (Generic)
 import           Lens.Micro
 import           Prelude             hiding (break, repeat, until)
@@ -72,7 +78,7 @@ instance HasNodeInfo NodeInfo where
     nodeInfo = id
 
 instance HasNodeInfo (L Token) where
-    nodeInfo tk = NodeInfo (locOf tk) [tk]
+    nodeInfo tk = NodeInfo (locOf tk) (Seq.singleton tk)
 
 instance Annotated ast => HasNodeInfo (ast NodeInfo) where
     nodeInfo = (^. ann)

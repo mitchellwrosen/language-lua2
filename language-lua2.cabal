@@ -1,5 +1,5 @@
 name:                   language-lua2
-version:                0.1.0.2
+version:                0.1.0.3
 synopsis:               Lua parser and pretty printer
 description:            Lua parser and pretty printer
 homepage:               http://github.com/mitchellwrosen/language-lua2

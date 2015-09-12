@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | Abstract syntax of Lua 5.3 source files. See
 -- <http://www.lua.org/manual/5.3/> for more information.
 
@@ -34,7 +36,9 @@ import Data.Data
 import Data.List.NonEmpty      (NonEmpty(..))
 import GHC.Generics            (Generic)
 import Lens.Micro
+#if MIN_VERSION_base(4,8,0)
 import Prelude                 hiding ((<$>))
+#endif
 import Text.PrettyPrint.Leijen
 
 -- | An identifier, defined as any string of letters, digits, or underscores,

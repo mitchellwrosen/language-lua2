@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Main where
 
 import Instances ()
@@ -7,11 +9,14 @@ import Language.Lua.Pretty
 import Language.Lua.Syntax
 import Language.Lua.Token
 
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative ((<$))
+#endif
 import           Data.Loc
 import           Test.QuickCheck
 import           Test.Tasty
 import           Test.Tasty.HUnit
-import qualified Test.Tasty.QuickCheck       as QC
+import qualified Test.Tasty.QuickCheck as QC
 
 main :: IO ()
 main = defaultMain $ testGroup "tests"

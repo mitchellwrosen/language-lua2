@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP             #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -14,7 +16,14 @@ import qualified Data.List.NonEmpty         as NE
 import           Test.QuickCheck.Arbitrary
 import           Test.QuickCheck.Gen
 
-instance Arbitrary a => Arbitrary (Ident a) where
+#if !MIN_VERSION_base(4,8,0)
+import Data.Typeable (Typeable)
+type C a = (Arbitrary a, Typeable a)
+#else
+type C a = Arbitrary a
+#endif
+
+instance C a => Arbitrary (Ident a) where
     arbitrary = Ident <$> arbitrary <*> genIdent
       where
         genIdent :: Gen String
@@ -35,24 +44,25 @@ instance Arbitrary a => Arbitrary (Ident a) where
             isAsciiLetter c = isAsciiLower c || isAsciiUpper c
 
         keywords :: HashSet String
-        keywords = [ "and", "break", "do", "else", "elseif", "end", "false"
-                   , "for", "function", "goto", "if", "in", "local", "nil"
-                   , "not", "or", "repeat", "return", "then", "true", "until", "while"
-                   ]
+        keywords = HS.fromList
+            [ "and", "break", "do", "else", "elseif", "end", "false"
+            , "for", "function", "goto", "if", "in", "local", "nil"
+            , "not", "or", "repeat", "return", "then", "true", "until", "while"
+            ]
 
-instance Arbitrary a => Arbitrary (IdentList a) where
+instance C a => Arbitrary (IdentList a) where
     arbitrary = IdentList <$> arbitrary <*> arbitrary
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (IdentList1 a) where
+instance C a => Arbitrary (IdentList1 a) where
     arbitrary = IdentList1 <$> arbitrary <*> arbitrary
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (Block a) where
+instance C a => Arbitrary (Block a) where
     arbitrary = Block <$> arbitrary <*> listOf1 arbitrary <*> arbitrary
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (Statement a) where
+instance C a => Arbitrary (Statement a) where
     arbitrary = oneof
         [ EmptyStmt      <$> arbitrary
         , Assign         <$> arbitrary <*> arbitrary <*> arbitrary
@@ -73,15 +83,15 @@ instance Arbitrary a => Arbitrary (Statement a) where
 
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (ReturnStatement a) where
+instance C a => Arbitrary (ReturnStatement a) where
     arbitrary = ReturnStatement <$> arbitrary <*> arbitrary
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (FunctionName a) where
+instance C a => Arbitrary (FunctionName a) where
     arbitrary = FunctionName <$> arbitrary <*> arbitrary <*> arbitrary
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (Variable a) where
+instance C a => Arbitrary (Variable a) where
     arbitrary = oneof
         [ VarIdent     <$> arbitrary <*> arbitrary
         , VarField     <$> arbitrary <*> arbitrary <*> arbitrary
@@ -90,10 +100,10 @@ instance Arbitrary a => Arbitrary (Variable a) where
 
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (VariableList1 a) where
+instance C a => Arbitrary (VariableList1 a) where
     arbitrary = VariableList1 <$> arbitrary <*> arbitrary
 
-instance Arbitrary a => Arbitrary (Expression a) where
+instance C a => Arbitrary (Expression a) where
     arbitrary = oneof
         [ Nil       <$> arbitrary
         , Bool      <$> arbitrary <*> arbitrary
@@ -110,13 +120,13 @@ instance Arbitrary a => Arbitrary (Expression a) where
 
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (ExpressionList a) where
+instance C a => Arbitrary (ExpressionList a) where
     arbitrary = ExpressionList <$> arbitrary <*> arbitrary
 
-instance Arbitrary a => Arbitrary (ExpressionList1 a) where
+instance C a => Arbitrary (ExpressionList1 a) where
     arbitrary = ExpressionList1 <$> arbitrary <*> arbitrary
 
-instance Arbitrary a => Arbitrary (PrefixExpression a) where
+instance C a => Arbitrary (PrefixExpression a) where
     arbitrary = oneof
         [ PrefixVar     <$> arbitrary <*> arbitrary
         , PrefixFunCall <$> arbitrary <*> arbitrary
@@ -125,7 +135,7 @@ instance Arbitrary a => Arbitrary (PrefixExpression a) where
 
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (FunctionCall a) where
+instance C a => Arbitrary (FunctionCall a) where
     arbitrary = oneof
         [ FunctionCall <$> arbitrary <*> arbitrary <*> arbitrary
         , MethodCall   <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
@@ -133,7 +143,7 @@ instance Arbitrary a => Arbitrary (FunctionCall a) where
 
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (FunctionArgs a) where
+instance C a => Arbitrary (FunctionArgs a) where
     arbitrary = oneof
         [ Args       <$> arbitrary <*> arbitrary
         , ArgsTable  <$> arbitrary <*> arbitrary
@@ -142,15 +152,15 @@ instance Arbitrary a => Arbitrary (FunctionArgs a) where
 
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (FunctionBody a) where
+instance C a => Arbitrary (FunctionBody a) where
     arbitrary = FunctionBody <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (TableConstructor a) where
+instance C a => Arbitrary (TableConstructor a) where
     arbitrary = TableConstructor <$> arbitrary <*> arbitrary
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (Field a) where
+instance C a => Arbitrary (Field a) where
     arbitrary = oneof
         [ FieldExp   <$> arbitrary <*> arbitrary <*> arbitrary
         , FieldIdent <$> arbitrary <*> arbitrary <*> arbitrary
@@ -159,11 +169,11 @@ instance Arbitrary a => Arbitrary (Field a) where
 
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (FieldList a) where
+instance C a => Arbitrary (FieldList a) where
     arbitrary = FieldList <$> arbitrary <*> arbitrary
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (Binop a) where
+instance C a => Arbitrary (Binop a) where
     arbitrary = oneof
         [ Plus       <$> arbitrary
         , Minus      <$> arbitrary
@@ -190,7 +200,7 @@ instance Arbitrary a => Arbitrary (Binop a) where
 
     shrink = genericShrink
 
-instance Arbitrary a => Arbitrary (Unop a) where
+instance C a => Arbitrary (Unop a) where
     arbitrary = oneof
         [ Negate     <$> arbitrary
         , Not        <$> arbitrary
