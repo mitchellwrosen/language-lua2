@@ -12,6 +12,8 @@ import Language.Lua.Token
 #if !MIN_VERSION_base(4,8,0)
 import           Control.Applicative ((<$))
 #endif
+import           Control.DeepSeq       (rnf)
+import           Control.Exception     (evaluate)
 import           Data.Loc
 import           Test.QuickCheck
 import           Test.Tasty
@@ -21,8 +23,7 @@ import qualified Test.Tasty.QuickCheck as QC
 main :: IO ()
 main = defaultMain $ testGroup "tests"
     [ lexerTests
-    -- TODO: Make smarter shrinks and re-enable
-    -- , parserTests
+    , parserTests
     ]
 
 lexerTests :: TestTree
@@ -64,7 +65,14 @@ lexerTests = testGroup "lexer tests"
     l = map unLoc . streamToList . runLexer luaLexer ""
 
 parserTests :: TestTree
-parserTests = QC.testProperty "Pretty-printer round-trip" (\luaAst -> luaFromString (luaToString luaAst) == Just luaAst)
+parserTests = testGroup "parser tests"
+    [ testCase "parse sample.lua" $ do
+          contents <- readFile "sample.lua"
+          evaluate (rnf (parseLua "sample.lua" contents))
+
+    -- TODO: Make smarter shrinks and re-enable
+    -- , QC.testProperty "Pretty-printer round-trip" (\luaAst -> luaFromString (luaToString luaAst) == Just luaAst)
+    ]
 
 luaToString :: Chunk () -> String
 luaToString c = displayS (renderPretty 1.0 80 (pretty c)) ""

@@ -1,20 +1,30 @@
-{-# LANGUAGE CPP             #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE ConstraintKinds      #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE OverloadedLists      #-}
+{-# LANGUAGE StandaloneDeriving   #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Instances where
 
+import Language.Lua.Token
 import Language.Lua.Syntax
+import Language.Lua.Parser (NodeInfo)
 
 import           Control.Applicative
+import           Control.DeepSeq
 import           Data.Char                  (isAsciiLower, isAsciiUpper, isDigit)
 import           Data.HashSet               (HashSet)
 import qualified Data.HashSet               as HS
 import           Data.List.NonEmpty         (NonEmpty)
 import qualified Data.List.NonEmpty         as NE
+import           Data.Loc                   (L(..), Loc(..), Pos(..))
+import           GHC.Generics               (Generic)
 import           Test.QuickCheck.Arbitrary
 import           Test.QuickCheck.Gen
+
+--------------------------------------------------------------------------------
+-- Arbitrary
 
 #if !MIN_VERSION_base(4,8,0)
 import Data.Typeable (Typeable)
@@ -210,7 +220,44 @@ instance C a => Arbitrary (Unop a) where
 
     shrink = genericShrink
 
+--------------------------------------------------------------------------------
+-- NFData
+
+instance NFData NodeInfo
+instance NFData Token
+
+instance NFData a => NFData (Ident a)
+instance NFData a => NFData (IdentList a)
+instance NFData a => NFData (IdentList1 a)
+instance NFData a => NFData (Block a)
+instance NFData a => NFData (Statement a)
+instance NFData a => NFData (ReturnStatement a)
+instance NFData a => NFData (FunctionName a)
+instance NFData a => NFData (Variable a)
+instance NFData a => NFData (VariableList1 a)
+instance NFData a => NFData (Expression a)
+instance NFData a => NFData (ExpressionList a)
+instance NFData a => NFData (ExpressionList1 a)
+instance NFData a => NFData (PrefixExpression a)
+instance NFData a => NFData (FunctionCall a)
+instance NFData a => NFData (FunctionArgs a)
+instance NFData a => NFData (FunctionBody a)
+instance NFData a => NFData (TableConstructor a)
+instance NFData a => NFData (Field a)
+instance NFData a => NFData (FieldList a)
+instance NFData a => NFData (Binop a)
+instance NFData a => NFData (Unop a)
+
 -- Orphans
 
 instance Arbitrary a => Arbitrary (NonEmpty a) where
     arbitrary = NE.fromList <$> listOf1 arbitrary
+
+deriving instance Generic a => Generic (L a)
+instance (Generic a, NFData a) => NFData (L a)
+
+deriving instance Generic Loc
+instance NFData Loc
+
+deriving instance Generic Pos
+instance NFData Pos
