@@ -376,6 +376,7 @@ grammar = mdo
         <|> mkFloat      <$> floatLit
         <|> mkString     <$> stringLit
         <|> mkVararg     <$> vararg
+        <|> mkFunDef     <$> function <*> functionBody
         <|> mkPrefixExp  <$> prefixExpression
         <|> mkTableCtor  <$> tableConstructor
 
@@ -676,6 +677,9 @@ mkString (L _ tk) = error $ printf "mkString: %s is not a TkStringLit" (show tk)
 
 mkVararg :: L Token -> Expression NodeInfo
 mkVararg = Vararg . nodeInfo
+
+mkFunDef :: L Token -> FunctionBody NodeInfo -> Expression NodeInfo
+mkFunDef a b = FunDef (nodeInfo a <> nodeInfo b) b
 
 mkPrefixExp :: PrefixExpression NodeInfo -> Expression NodeInfo
 mkPrefixExp a = PrefixExp (nodeInfo a) a

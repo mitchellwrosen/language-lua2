@@ -77,13 +77,15 @@ lexerTests = testGroup "lexer tests"
 
 parserTests :: TestTree
 parserTests = testGroup "parser tests"
-    [ testCase "parse sample.lua" $ do
-          contents <- readFile "sample.lua"
-          evaluate (rnf (parseLua "sample.lua" contents))
+    [ testCase "parse 1.lua" (parseFile "test/samples/1.lua")
+    , testCase "parse 2.lua" (parseFile "test/samples/2.lua")
 
     -- TODO: Make smarter shrinks and re-enable
     -- , QC.testProperty "Pretty-printer round-trip" (\luaAst -> luaFromString (luaToString luaAst) == Just luaAst)
     ]
+
+parseFile :: String -> IO ()
+parseFile file = readFile file >>= evaluate . rnf . parseLua file
 
 luaToString :: Chunk () -> String
 luaToString c = displayS (renderPretty 1.0 80 (pretty c)) ""
