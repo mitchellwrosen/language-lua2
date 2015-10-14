@@ -31,6 +31,7 @@ lexerTests = testGroup "lexer tests"
     [ stringLiteralTests
     , intLiteralTests
     , floatLiteralTests
+    , commentTests
     ]
   where
     stringLiteralTests :: TestTree
@@ -60,6 +61,16 @@ lexerTests = testGroup "lexer tests"
         l "0xA23p-4"  @?= [TkFloatLit "0xA23p-4"]
         l "0X1.92P+1" @?= [TkFloatLit "0X1.92P+1"]
         l "0X1.92p1"  @?= [TkFloatLit "0X1.92p1"]
+
+    commentTests :: TestTree
+    commentTests = testCase "comments" $ do
+        l "--"                     @?= []
+        l "--just a comment"       @?= []
+        l "-- just a comment"      @?= []
+        l "3 -- hi"                @?= [TkIntLit "3"]
+        l "3 --[ hi"               @?= [TkIntLit "3"]
+        l "3 --[\nhi"              @?= [TkIntLit "3", TkIdent "hi"]
+        l "3 --[[hello\nworld]] 4" @?= [TkIntLit "3", TkIntLit "4"]
 
     l :: String -> [Token]
     l = map unLoc . streamToList . runLexer luaLexer ""

@@ -213,14 +213,28 @@ luaWhitespace = mconcat
     , whitespace $ longest luaLineComment
     ]
 
-luaBlockCommentPrefix :: RE Char String
-luaBlockCommentPrefix = "--[" *> many (sym '=') <* sym '['
+-- A comment starts with a double hyphen (--) anywhere outside a string. If the
+-- text immediately after -- is not an opening long bracket, the comment is a
+-- short comment, which runs until the end of the line. Otherwise, it is a long
+-- comment, which runs until the corresponding closing long bracket. Long
+-- comments are frequently used to disable code temporarily.
 
-luaBlockCommentSuffix :: String -> RE Char Char
-luaBlockCommentSuffix xs = many anySym *> "--]" *> exactlyN (length xs) (sym '=') *> sym ']'
+luaBlockCommentPrefix :: RE Char String
+luaBlockCommentPrefix = "--[["
+
+luaBlockCommentSuffix :: String -> RE Char String
+luaBlockCommentSuffix _ = many anySym *> "]]"
 
 luaLineComment :: RE Char String
-luaLineComment = "--" *> many (psym (/= '\n'))
+luaLineComment =
+        "--"
+    <|> "--\n"
+    <|> "--"  *> psym p *> many (psym (/= '\n'))
+    <|> "--[\n"
+    <|> "--[" *> psym p *> many (psym (/= '\n'))
+  where
+    p :: Char -> Bool
+    p c = c /= '[' && c /= '\n'
 
 --------------------------------------------------------------------------------
 -- Regex extras
