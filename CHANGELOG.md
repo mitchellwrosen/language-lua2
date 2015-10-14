@@ -1,3 +1,7 @@
+0.1.0.4
+=======
+- bug fixes in lexer and parser
+
 0.1.0.3
 =======
 - base-4.7 support
