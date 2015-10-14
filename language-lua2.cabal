@@ -1,5 +1,5 @@
 name:                   language-lua2
-version:                0.1.0.4
+version:                0.1.0.5
 synopsis:               Lua parser and pretty printer
 description:            Lua parser and pretty printer
 homepage:               http://github.com/mitchellwrosen/language-lua2
@@ -10,6 +10,8 @@ maintainer:             mitchellwrosen@gmail.com
 category:               Language
 build-type:             Simple
 cabal-version:          >=1.10
+extra-source-files:     test/samples/1.lua
+                      , test/samples/2.lua
 
 Flag exes
   Description:          "Build debug executables"

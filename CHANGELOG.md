@@ -1,3 +1,7 @@
+0.1.0.5
+=======
+- added extra-source-files to fix tests
+
 0.1.0.4
 =======
 - bug fixes in lexer and parser
