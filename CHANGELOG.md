@@ -1,3 +1,7 @@
+0.1.0.6
+=======
+- fixed incorrect FieldList annotation (too many tokens)
+
 0.1.0.5
 =======
 - added extra-source-files to fix tests

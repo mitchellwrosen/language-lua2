@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Language.Lua.Lexer
     ( luaLexer
 
@@ -243,7 +245,7 @@ oneOf :: Eq s => [s] -> RE s s
 oneOf = foldl' (\acc x -> acc <|> sym x) empty
 
 -- `andOr f x y` will succeed on `x`, `y`, and `xy`
-andOr :: forall m. Monoid m => RE Char m -> RE Char m -> RE Char m
+andOr :: Monoid m => RE Char m -> RE Char m -> RE Char m
 andOr rx ry = ry <|> liftA2 (\x my -> x <> fromMaybe mempty my) rx (optional ry)
 
 between :: Char -> Char -> RE Char a -> RE Char a
