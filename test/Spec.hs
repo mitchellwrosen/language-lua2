@@ -176,8 +176,27 @@ parserTests = testGroup "parser tests"
                                              (VarIdent b_info
                                               (Ident b_info "b")))) ]
 
-    , testCase "parse 1.lua" (parseFile "test/samples/1.lua")
-    , testCase "parse 2.lua" (parseFile "test/samples/2.lua")
+    , testCase "param list" $ do
+        let ([p], _) = fullParses (parser luaParamList) (l "...")
+            loc = Loc (Pos "" 1 1 0) (Pos "" 1 3 2)
+        p @?= ParamListVararg (NodeInfo loc (Seq.singleton (L loc TkVararg)))
+
+    , testCase "param list 2" $ do
+        let ([p], _) = fullParses (parser luaParamList) (l "foo, bar")
+            loc1 = Loc (Pos "" 1 1 0) (Pos "" 1 3 2)
+            loc2 = Loc (Pos "" 1 4 3) (Pos "" 1 4 3)
+            loc3 = Loc (Pos "" 1 6 5) (Pos "" 1 8 7)
+            tk1  = L loc1 (TkIdent "foo")
+            tk2  = L loc2 TkComma
+            tk3  = L loc3 (TkIdent "bar")
+            info = NodeInfo (loc1 <> loc3) (Seq.fromList [tk1, tk2, tk3])
+        p @?= ParamList info (IdentList info [ Ident (NodeInfo loc1 (Seq.singleton tk1)) "foo"
+                                             , Ident (NodeInfo loc3 (Seq.singleton tk3)) "bar"
+                                             ])
+                             False
+
+    -- , testCase "parse 1.lua" (parseFile "test/samples/1.lua")
+    -- , testCase "parse 2.lua" (parseFile "test/samples/2.lua")
 
     -- TODO: Make smarter shrinks and re-enable
     -- , QC.testProperty "Pretty-printer round-trip" (\luaAst -> luaFromString (luaToString luaAst) == Just luaAst)

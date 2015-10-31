@@ -20,7 +20,7 @@ import           Data.Foldable       (foldMap)
 import           Data.List.NonEmpty  (NonEmpty((:|)))
 import qualified Data.List.NonEmpty  as NE
 import           Data.Loc
-import           Data.Maybe          (fromMaybe)
+import           Data.Maybe          (fromMaybe, isJust)
 import           Data.Monoid
 import           Data.Sequence       (Seq)
 import qualified Data.Sequence       as Seq
@@ -85,17 +85,18 @@ instance HasNodeInfo a => HasNodeInfo (NonEmpty a) where
 instance HasNodeInfo a => HasNodeInfo (Maybe a) where
     nodeInfo = foldMap nodeInfo
 
-luaReturnStatement  = (\(_,_,x,_,_,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
-luaFunctionName     = (\(_,_,_,x,_,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
-luaVariable         = (\(_,_,_,_,x,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
-luaAtomicExpression = (\(_,_,_,_,_,_,x,_,_,_,_,_,_,_) -> x) <$> grammar
-luaPrefixExpression = (\(_,_,_,_,_,_,_,x,_,_,_,_,_,_) -> x) <$> grammar
-luaFunctionCall     = (\(_,_,_,_,_,_,_,_,x,_,_,_,_,_) -> x) <$> grammar
-luaFunctionArgs     = (\(_,_,_,_,_,_,_,_,_,x,_,_,_,_) -> x) <$> grammar
-luaFunctionBody     = (\(_,_,_,_,_,_,_,_,_,_,x,_,_,_) -> x) <$> grammar
-luaTableConstructor = (\(_,_,_,_,_,_,_,_,_,_,_,x,_,_) -> x) <$> grammar
-luaField            = (\(_,_,_,_,_,_,_,_,_,_,_,_,x,_) -> x) <$> grammar
-luaFieldList        = (\(_,_,_,_,_,_,_,_,_,_,_,_,_,x) -> x) <$> grammar
+luaReturnStatement  = (\(_,_,x,_,_,_,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
+luaFunctionName     = (\(_,_,_,x,_,_,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
+luaVariable         = (\(_,_,_,_,x,_,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
+luaAtomicExpression = (\(_,_,_,_,_,_,x,_,_,_,_,_,_,_,_) -> x) <$> grammar
+luaPrefixExpression = (\(_,_,_,_,_,_,_,x,_,_,_,_,_,_,_) -> x) <$> grammar
+luaFunctionCall     = (\(_,_,_,_,_,_,_,_,x,_,_,_,_,_,_) -> x) <$> grammar
+luaFunctionArgs     = (\(_,_,_,_,_,_,_,_,_,x,_,_,_,_,_) -> x) <$> grammar
+luaFunctionBody     = (\(_,_,_,_,_,_,_,_,_,_,x,_,_,_,_) -> x) <$> grammar
+luaParamList        = (\(_,_,_,_,_,_,_,_,_,_,_,x,_,_,_) -> x) <$> grammar
+luaTableConstructor = (\(_,_,_,_,_,_,_,_,_,_,_,_,x,_,_) -> x) <$> grammar
+luaField            = (\(_,_,_,_,_,_,_,_,_,_,_,_,_,x,_) -> x) <$> grammar
+luaFieldList        = (\(_,_,_,_,_,_,_,_,_,_,_,_,_,_,x) -> x) <$> grammar
 
 grammar :: Grammar r ( Prod r String (L Token) (Block NodeInfo)
                      , Prod r String (L Token) (Statement NodeInfo)
@@ -108,6 +109,7 @@ grammar :: Grammar r ( Prod r String (L Token) (Block NodeInfo)
                      , Prod r String (L Token) (FunctionCall NodeInfo)
                      , Prod r String (L Token) (FunctionArgs NodeInfo)
                      , Prod r String (L Token) (FunctionBody NodeInfo)
+                     , Prod r String (L Token) (ParamList NodeInfo)
                      , Prod r String (L Token) (TableConstructor NodeInfo)
                      , Prod r String (L Token) (Field NodeInfo)
                      , Prod r String (L Token) (FieldList NodeInfo)
@@ -289,13 +291,19 @@ grammar = mdo
     functionBody :: Prod r String (L Token) (FunctionBody NodeInfo) <- rule $
             mkFunctionBody
             <$> lparen
-            <*> identList
-            <*> optional ((,)
-                <$> comma
-                <*> vararg)
+            <*> optional paramList
             <*> rparen
             <*> block
             <*> end
+
+    paramList :: Prod r String (L Token) (ParamList NodeInfo) <- rule $
+            ParamListVararg . nodeInfo <$> vararg
+        <|> mkParamList
+            <$> identList
+            <*> optional ((,)
+                <$> comma
+                <*> vararg)
+
 
     tableConstructor :: Prod r String (L Token) (TableConstructor NodeInfo) <- rule $
         mkTableConstructor
@@ -335,6 +343,7 @@ grammar = mdo
            , functionCall
            , functionArgs
            , functionBody
+           , paramList
            , tableConstructor
            , field
            , fieldList
@@ -610,22 +619,22 @@ mkArgsString :: L Token -> FunctionArgs NodeInfo
 mkArgsString a@(L _ (TkStringLit s)) = ArgsString (nodeInfo a) s
 mkArgsString tk = error $ printf "mkArgsString: %s is not a TkStringLit" (show tk)
 
+mkParamList
+    :: IdentList NodeInfo
+    -> Maybe (L Token, L Token)
+    -> ParamList NodeInfo
+mkParamList a b = ParamList (nodeInfo a <> nodeInfo b) a (isJust b)
+
 mkFunctionBody
     :: L Token
-    -> IdentList NodeInfo
-    -> Maybe (L Token, L Token)
+    -> Maybe (ParamList NodeInfo)
     -> L Token
     -> Block NodeInfo
     -> L Token
     -> FunctionBody NodeInfo
-mkFunctionBody a b (Just (c,d)) e f g = FunctionBody ni b True (injectLoc e f)
+mkFunctionBody a b c d e = FunctionBody ni b (injectLoc c d)
   where
-    ni = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <>
-         nodeInfo e <> nodeInfo f <> nodeInfo g
-mkFunctionBody a b Nothing c d e = FunctionBody ni b False (injectLoc c d)
-  where
-    ni = nodeInfo a <> nodeInfo b <> nodeInfo c <>
-         nodeInfo d <> nodeInfo e
+    ni = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e
 
 mkTableConstructor :: L Token -> Maybe (FieldList NodeInfo) -> L Token -> TableConstructor NodeInfo
 mkTableConstructor a b c = TableConstructor (nodeInfo a <> nodeInfo b <> nodeInfo c) (fromMaybe (FieldList mempty []) b)

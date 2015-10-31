@@ -25,6 +25,7 @@ module Language.Lua.Syntax
     , FunctionCall(..)
     , FunctionArgs(..)
     , FunctionBody(..)
+    , ParamList(..)
     , TableConstructor(..)
     , Field(..)
     , FieldList(..)
@@ -167,7 +168,12 @@ data FunctionArgs a
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data FunctionBody a
-    = FunctionBody !a !(IdentList a) !Bool !(Block a) -- ^ @(x, y, ...) /block/ __end__@
+    = FunctionBody !a !(Maybe (ParamList a)) !(Block a) -- ^ @(x, y, ...) /block/ __end__@
+    deriving (Data, Eq, Functor, Generic, Show, Typeable)
+
+data ParamList a
+    = ParamList !a !(IdentList a) !Bool -- ^ @(x, y, ...)@
+    | ParamListVararg !a                -- ^ @(...)@
     deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 -- | A table constructor.
@@ -319,14 +325,17 @@ instance Pretty (FunctionArgs a) where
     pretty (ArgsString _ s)               = dquotes (string s)
 
 instance Pretty (FunctionBody a) where
-    pretty (FunctionBody _ (IdentList _ is) va b) =
-            encloseSep lparen rhs (text ", ") (map pretty is)
+    pretty (FunctionBody _ p b) =
+            parens (pretty p)
         <$> indent 4 (pretty b)
         <$> text "end"
-      where
-        rhs = if va
-                  then comma <+> text "..." <> rparen
-                  else rparen
+
+instance Pretty (ParamList a) where
+    pretty (ParamList _ (IdentList _ is) True) =
+        sepBy (text ", ") (map pretty is) <> comma <+> text "..."
+    pretty (ParamList _ (IdentList _ is) False) =
+        sepBy (text ", ") (map pretty is)
+    pretty (ParamListVararg _) = text "..."
 
 instance Pretty (TableConstructor a) where
     pretty (TableConstructor _ (FieldList _ []))  = lbrace <+> rbrace
@@ -511,7 +520,16 @@ instance Annotated FunctionArgs where
         g (ArgsString _ b) a = ArgsString a b
 
 instance Annotated FunctionBody where
-    ann = lens (\(FunctionBody a _ _ _) -> a) (\(FunctionBody _ b c d) a -> FunctionBody a b c d)
+    ann = lens (\(FunctionBody a _ _) -> a) (\(FunctionBody _ b c) a -> FunctionBody a b c)
+
+instance Annotated ParamList where
+    ann = lens f g
+      where
+        f (ParamList a _ _)   = a
+        f (ParamListVararg a) = a
+
+        g (ParamList _ b c) a   = ParamList a b c
+        g (ParamListVararg _) a = ParamListVararg a
 
 instance Annotated TableConstructor where
     ann = lens (\(TableConstructor a _) -> a) (\(TableConstructor _ b) a -> TableConstructor a b)

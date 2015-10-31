@@ -163,8 +163,14 @@ instance C a => Arbitrary (FunctionArgs a) where
     shrink = genericShrink
 
 instance C a => Arbitrary (FunctionBody a) where
-    arbitrary = FunctionBody <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary = FunctionBody <$> arbitrary <*> arbitrary <*> arbitrary
     shrink = genericShrink
+
+instance C a => Arbitrary (ParamList a) where
+    arbitrary = oneof
+        [ ParamList <$> arbitrary <*> arbitrary <*> arbitrary
+        , ParamListVararg <$> arbitrary
+        ]
 
 instance C a => Arbitrary (TableConstructor a) where
     arbitrary = TableConstructor <$> arbitrary <*> arbitrary
@@ -242,6 +248,7 @@ instance NFData a => NFData (PrefixExpression a)
 instance NFData a => NFData (FunctionCall a)
 instance NFData a => NFData (FunctionArgs a)
 instance NFData a => NFData (FunctionBody a)
+instance NFData a => NFData (ParamList a)
 instance NFData a => NFData (TableConstructor a)
 instance NFData a => NFData (Field a)
 instance NFData a => NFData (FieldList a)

@@ -147,13 +147,13 @@ parseLuaWith g filename contents =
 -- | Grammar for a Lua chunk; i.e. a Lua compilation unit, defined as a list of
 -- statements. This is the grammar you should use to parse real Lua code.
 luaChunk :: LuaGrammar Chunk -- Grammar r String (Prod r String (L Token) (Block NodeInfo))
-luaChunk = (\(x,_,_,_,_,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
+luaChunk = (\(x,_,_,_,_,_,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
 
 -- | Grammar for a single Lua statement. Mostly subsumed by 'luaChunk'.
 luaStatement :: LuaGrammar Statement
-luaStatement = (\(_,x,_,_,_,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
+luaStatement = (\(_,x,_,_,_,_,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
 
 -- | Grammar for a Lua expression. Provided for smaller REPL-like parsing that
 -- operates only on expressions.
 luaExpression :: LuaGrammar Expression
-luaExpression = (\(_,_,_,_,_,x,_,_,_,_,_,_,_,_) -> x) <$> grammar
+luaExpression = (\(_,_,_,_,_,x,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
