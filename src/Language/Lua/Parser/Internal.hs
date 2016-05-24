@@ -287,7 +287,7 @@ grammar = mdo
     <|> mkArgsString
       <$> stringLit
 
-    identList <- identListG
+  identList <- identListG
 
   functionBody :: Prod r String (L Token) (FunctionBody NodeInfo) <- rule $
     mkFunctionBody

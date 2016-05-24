@@ -1,6 +1,6 @@
 resolver: lts-2.22
 extra-deps:
-- Earley-0.10.1.0
-- lexer-applicative-2.1.0.1
-- microlens-0.4.4.0
-- srcloc-0.5.1.0
+  - Earley-0.10.1.0
+  - lexer-applicative-2.1.0.1
+  - microlens-0.4.4.0
+  - srcloc-0.5.1.0
