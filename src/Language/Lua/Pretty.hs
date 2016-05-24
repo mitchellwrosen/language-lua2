@@ -3,14 +3,14 @@
 -- <https://hackage.haskell.org/package/wl-pprint wl-pprint>.
 
 module Language.Lua.Pretty
-    ( -- * <https://hackage.haskell.org/package/wl-pprint wl-pprint> re-exports
-      Doc
-    , Pretty(..)
-    , SimpleDoc(..)
-    , renderPretty
-    , renderCompact
-    , displayS
-    , displayIO
-    ) where
+  ( -- * <https://hackage.haskell.org/package/wl-pprint wl-pprint> re-exports
+    Doc
+  , Pretty(..)
+  , SimpleDoc(..)
+  , renderPretty
+  , renderCompact
+  , displayS
+  , displayIO
+  ) where
 
 import Text.PrettyPrint.Leijen

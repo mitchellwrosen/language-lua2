@@ -1,25 +1,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Language.Lua.Lexer
-    ( luaLexer
+  ( luaLexer
 
-    -- * <https://hackage.haskell.org/package/lexer-applicative lexer-applicative> re-exports
-    , LexicalError(..)
-    , TokenStream(..)
-    , runLexer
-    , streamToList
-    , streamToEitherList
-    ) where
+  -- * <https://hackage.haskell.org/package/lexer-applicative lexer-applicative> re-exports
+  , LexicalError(..)
+  , TokenStream(..)
+  , runLexer
+  , streamToList
+  , streamToEitherList
+  ) where
 
 import Language.Lua.Token
 
-import           Data.Char                  (chr, isDigit, isHexDigit, isSpace)
-import           Data.List                  (foldl')
-import           Data.Maybe                 (fromMaybe)
-import           Data.Monoid
-import           Language.Lexer.Applicative
-import           Numeric                    (readHex)
-import           Text.Regex.Applicative
+import Data.Char                  (chr, isDigit, isHexDigit, isSpace)
+import Data.List                  (foldl')
+import Data.Maybe                 (fromMaybe)
+import Data.Monoid
+import Language.Lexer.Applicative
+import Numeric                    (readHex)
+import Text.Regex.Applicative
 
 -- |
 -- @
@@ -35,185 +35,186 @@ luaLexer :: Lexer Token
 luaLexer = luaTokens <> luaWhitespace
 
 luaTokens :: Lexer Token
-luaTokens = token (longest luaToken)
-         <> token (longestShortest luaLongBracketStringLitPrefix luaLongBracketStringLitSuffix)
+luaTokens =
+     token (longest luaToken)
+  <> token (longestShortest luaLongBracketStringLitPrefix luaLongBracketStringLitSuffix)
 
 luaToken :: RE Char Token
 luaToken =
-        TkAnd         <$ "and"
-    <|> TkBreak       <$ "break"
-    <|> TkDo          <$ "do"
-    <|> TkElse        <$ "else"
-    <|> TkElseif      <$ "elseif"
-    <|> TkEnd         <$ "end"
-    <|> TkFalse       <$ "false"
-    <|> TkFor         <$ "for"
-    <|> TkFunction    <$ "function"
-    <|> TkGoto        <$ "goto"
-    <|> TkIf          <$ "if"
-    <|> TkIn          <$ "in"
-    <|> TkLocal       <$ "local"
-    <|> TkNil         <$ "nil"
-    <|> TkNot         <$ "not"
-    <|> TkOr          <$ "or"
-    <|> TkRepeat      <$ "repeat"
-    <|> TkReturn      <$ "return"
-    <|> TkThen        <$ "then"
-    <|> TkTrue        <$ "true"
-    <|> TkUntil       <$ "until"
-    <|> TkWhile       <$ "while"
-    <|> TkAssign      <$ "="
-    <|> TkNeq         <$ "~="
-    <|> TkPlus        <$ "+"
-    <|> TkDash        <$ "-"
-    <|> TkMult        <$ "*"
-    <|> TkFloatDiv    <$ "/"
-    <|> TkModulo      <$ "%"
-    <|> TkExponent    <$ "^"
-    <|> TkLength      <$ "#"
-    <|> TkBitwiseAnd  <$ "&"
-    <|> TkBitwiseOr   <$ "|"
-    <|> TkLt          <$ "<"
-    <|> TkGt          <$ ">"
-    <|> TkLShift      <$ "<<"
-    <|> TkRShift      <$ ">>"
-    <|> TkFloorDiv    <$ "//"
-    <|> TkEq          <$ "=="
-    <|> TkLeq         <$ "<="
-    <|> TkGeq         <$ ">="
-    <|> TkLParen      <$ "("
-    <|> TkRParen      <$ ")"
-    <|> TkLBrace      <$ "{"
-    <|> TkRBrace      <$ "}"
-    <|> TkLBracket    <$ "["
-    <|> TkRBracket    <$ "]"
-    <|> TkSemi        <$ ";"
-    <|> TkColon       <$ ":"
-    <|> TkComma       <$ ","
-    <|> TkLabel       <$ "::"
-    <|> TkDot         <$ "."
-    <|> TkConcat      <$ ".."
-    <|> TkVararg      <$ "..."
-    <|> TkTilde       <$ "~"
-    <|> TkQuote       <$ "'"
-    <|> TkDoubleQuote <$ "\""
-    <|> TkIdent       <$> luaIdentifier
-    <|> TkStringLit   <$> luaStringLit
-    <|> TkFloatLit    <$> luaFloatLit
-    <|> TkIntLit      <$> luaIntLit
+      TkAnd         <$ "and"
+  <|> TkBreak       <$ "break"
+  <|> TkDo          <$ "do"
+  <|> TkElse        <$ "else"
+  <|> TkElseif      <$ "elseif"
+  <|> TkEnd         <$ "end"
+  <|> TkFalse       <$ "false"
+  <|> TkFor         <$ "for"
+  <|> TkFunction    <$ "function"
+  <|> TkGoto        <$ "goto"
+  <|> TkIf          <$ "if"
+  <|> TkIn          <$ "in"
+  <|> TkLocal       <$ "local"
+  <|> TkNil         <$ "nil"
+  <|> TkNot         <$ "not"
+  <|> TkOr          <$ "or"
+  <|> TkRepeat      <$ "repeat"
+  <|> TkReturn      <$ "return"
+  <|> TkThen        <$ "then"
+  <|> TkTrue        <$ "true"
+  <|> TkUntil       <$ "until"
+  <|> TkWhile       <$ "while"
+  <|> TkAssign      <$ "="
+  <|> TkNeq         <$ "~="
+  <|> TkPlus        <$ "+"
+  <|> TkDash        <$ "-"
+  <|> TkMult        <$ "*"
+  <|> TkFloatDiv    <$ "/"
+  <|> TkModulo      <$ "%"
+  <|> TkExponent    <$ "^"
+  <|> TkLength      <$ "#"
+  <|> TkBitwiseAnd  <$ "&"
+  <|> TkBitwiseOr   <$ "|"
+  <|> TkLt          <$ "<"
+  <|> TkGt          <$ ">"
+  <|> TkLShift      <$ "<<"
+  <|> TkRShift      <$ ">>"
+  <|> TkFloorDiv    <$ "//"
+  <|> TkEq          <$ "=="
+  <|> TkLeq         <$ "<="
+  <|> TkGeq         <$ ">="
+  <|> TkLParen      <$ "("
+  <|> TkRParen      <$ ")"
+  <|> TkLBrace      <$ "{"
+  <|> TkRBrace      <$ "}"
+  <|> TkLBracket    <$ "["
+  <|> TkRBracket    <$ "]"
+  <|> TkSemi        <$ ";"
+  <|> TkColon       <$ ":"
+  <|> TkComma       <$ ","
+  <|> TkLabel       <$ "::"
+  <|> TkDot         <$ "."
+  <|> TkConcat      <$ ".."
+  <|> TkVararg      <$ "..."
+  <|> TkTilde       <$ "~"
+  <|> TkQuote       <$ "'"
+  <|> TkDoubleQuote <$ "\""
+  <|> TkIdent       <$> luaIdentifier
+  <|> TkStringLit   <$> luaStringLit
+  <|> TkFloatLit    <$> luaFloatLit
+  <|> TkIntLit      <$> luaIntLit
 
 luaIdentifier :: RE Char String
 luaIdentifier = (:)
-    <$> psym identFirst
-    <*> many (psym identRest)
-  where
-    identFirst :: Char -> Bool
-    identFirst = (||) <$> (== '_') <*> isAlpha
+  <$> psym identFirst
+  <*> many (psym identRest)
+ where
+  identFirst :: Char -> Bool
+  identFirst = (||) <$> (== '_') <*> isAlpha
 
-    identRest :: Char -> Bool
-    identRest = (||) <$> identFirst <*> isDigit
+  identRest :: Char -> Bool
+  identRest = (||) <$> identFirst <*> isDigit
 
 luaStringLit :: RE Char String
 luaStringLit = singleQuoted <|> doubleQuoted
-  where
-    singleQuoted :: RE Char String
-    singleQuoted = quoted '\''
+ where
+  singleQuoted :: RE Char String
+  singleQuoted = quoted '\''
 
-    doubleQuoted :: RE Char String
-    doubleQuoted = quoted '\"'
+  doubleQuoted :: RE Char String
+  doubleQuoted = quoted '\"'
 
-    quoted :: Char -> RE Char String
-    quoted c = between c c $ many (escapeSequence <|> not_c)
-      where
-        not_c :: RE Char Char
-        not_c = psym (/= c)
+  quoted :: Char -> RE Char String
+  quoted c = between c c $ many (escapeSequence <|> not_c)
+   where
+    not_c :: RE Char Char
+    not_c = psym (/= c)
 
-    escapeSequence :: RE Char Char
-    escapeSequence = sym '\\' *> sequences
-      where
-        sequences :: RE Char Char
-        sequences =
-                '\a' <$ sym 'a'
-            <|> '\b' <$ sym 'b'
-            <|> '\f' <$ sym 'f'
-            <|> '\n' <$ sym 'n'
-            <|> '\r' <$ sym 'r'
-            <|> '\t' <$ sym 't'
-            <|> '\v' <$ sym 'v'
-            <|>         sym '\\'
-            <|>         sym '"'
-            <|>         sym '\''
-            <|>         sym '\n'
-            <|> hexEscape
-            <|> decimalEscape
-            -- TODO: unicode escape
-            -- TODO: \z
-          where
-            hexEscape :: RE Char Char
-            hexEscape = go <$> (sym 'x' *> hexDigit) <*> hexDigit
-              where
-                go :: Char -> Char -> Char
-                go x y = let [(n,"")] = readHex [x,y] in chr n
+  escapeSequence :: RE Char Char
+  escapeSequence = sym '\\' *> sequences
+   where
+    sequences :: RE Char Char
+    sequences =
+          '\a' <$ sym 'a'
+      <|> '\b' <$ sym 'b'
+      <|> '\f' <$ sym 'f'
+      <|> '\n' <$ sym 'n'
+      <|> '\r' <$ sym 'r'
+      <|> '\t' <$ sym 't'
+      <|> '\v' <$ sym 'v'
+      <|>         sym '\\'
+      <|>         sym '"'
+      <|>         sym '\''
+      <|>         sym '\n'
+      <|> hexEscape
+      <|> decimalEscape
+      -- TODO: unicode escape
+      -- TODO: \z
+     where
+      hexEscape :: RE Char Char
+      hexEscape = go <$> (sym 'x' *> hexDigit) <*> hexDigit
+       where
+        go :: Char -> Char -> Char
+        go x y = let [(n,"")] = readHex [x,y] in chr n
 
-            decimalEscape :: RE Char Char
-            decimalEscape = chr . read <$> betweenN 1 3 digit
+      decimalEscape :: RE Char Char
+      decimalEscape = chr . read <$> betweenN 1 3 digit
 
-            -- unicodeEscape :: RE Char String
-            -- unicodeEscape = (\a b c -> a ++ b ++ [c])
-            --     <$> "u{"
-            --     <*> some hexDigit
-            --     <*> sym '}'
+      -- unicodeEscape :: RE Char String
+      -- unicodeEscape = (\a b c -> a ++ b ++ [c])
+      --     <$> "u{"
+      --     <*> some hexDigit
+      --     <*> sym '}'
 
 luaIntLit :: RE Char String
 luaIntLit = hexLit <|> some digit
-  where
-    hexLit :: RE Char String
-    hexLit = (\a b c -> a:b:c)
-        <$> sym '0'
-        <*> oneOf "xX"
-        <*> some hexDigit
+ where
+  hexLit :: RE Char String
+  hexLit = (\a b c -> a:b:c)
+    <$> sym '0'
+    <*> oneOf "xX"
+    <*> some hexDigit
 
 luaFloatLit :: RE Char String
 luaFloatLit = hexLit <|> decimalLit
-  where
-    hexLit :: RE Char String
-    hexLit = (\a b cs ds -> a : b : cs ++ ds)
-        <$> sym '0'
-        <*> oneOf "xX"
-        <*> some hexDigit
-        <*> andOr (fractionalSuffix hexDigit) (exponentPart "pP")
+ where
+  hexLit :: RE Char String
+  hexLit = (\a b cs ds -> a : b : cs ++ ds)
+    <$> sym '0'
+    <*> oneOf "xX"
+    <*> some hexDigit
+    <*> andOr (fractionalSuffix hexDigit) (exponentPart "pP")
 
-    decimalLit :: RE Char String
-    decimalLit = (++) <$> some digit <*> andOr (fractionalSuffix digit) (exponentPart "eE")
+  decimalLit :: RE Char String
+  decimalLit = (++) <$> some digit <*> andOr (fractionalSuffix digit) (exponentPart "eE")
 
-    exponentPart :: String -> RE Char String
-    exponentPart cs = f
-        <$> oneOf cs
-        <*> optional (oneOf "-+")
-        <*> some digit -- Yes, digit, even for binaryExponent: 0x0p+A is invalid
-      where
-        f :: Char -> Maybe Char -> String -> String
-        f x Nothing  zs = x:zs
-        f x (Just y) zs = x:y:zs
+  exponentPart :: String -> RE Char String
+  exponentPart cs = f
+    <$> oneOf cs
+    <*> optional (oneOf "-+")
+    <*> some digit -- Yes, digit, even for binaryExponent: 0x0p+A is invalid
+   where
+    f :: Char -> Maybe Char -> String -> String
+    f x Nothing  zs = x:zs
+    f x (Just y) zs = x:y:zs
 
-    fractionalSuffix :: RE Char Char -> RE Char String
-    fractionalSuffix c = (:) <$> sym '.' <*> many c
+  fractionalSuffix :: RE Char Char -> RE Char String
+  fractionalSuffix c = (:) <$> sym '.' <*> many c
 
 luaLongBracketStringLitPrefix :: RE Char String
 luaLongBracketStringLitPrefix = between '[' '[' (many (sym '='))
 
 luaLongBracketStringLitSuffix :: String -> RE Char Token
 luaLongBracketStringLitSuffix eqs = TkStringLit <$>
-    -- "For convenience, when the opening long bracket is immediately followed
-    -- by a newline, the newline is not included in the string."
-    (optional (sym '\n') *> many anySym <* between ']' ']' (exactlyN (length eqs) (sym '=')))
+  -- "For convenience, when the opening long bracket is immediately followed
+  -- by a newline, the newline is not included in the string."
+  (optional (sym '\n') *> many anySym <* between ']' ']' (exactlyN (length eqs) (sym '=')))
 
 luaWhitespace :: Lexer Token
 luaWhitespace = mconcat
-    [ whitespace $ longest (psym isSpace)
-    , whitespace $ longestShortest luaBlockCommentPrefix luaBlockCommentSuffix
-    , whitespace $ longest luaLineComment
-    ]
+  [ whitespace $ longest (psym isSpace)
+  , whitespace $ longestShortest luaBlockCommentPrefix luaBlockCommentSuffix
+  , whitespace $ longest luaLineComment
+  ]
 
 -- A comment starts with a double hyphen (--) anywhere outside a string. If the
 -- text immediately after -- is not an opening long bracket, the comment is a
@@ -229,14 +230,14 @@ luaBlockCommentSuffix _ = many anySym *> "]]"
 
 luaLineComment :: RE Char String
 luaLineComment =
-        "--"
-    <|> "--\n"
-    <|> "--"  *> psym p *> many (psym (/= '\n'))
-    <|> "--[\n"
-    <|> "--[" *> psym p *> many (psym (/= '\n'))
-  where
-    p :: Char -> Bool
-    p c = c /= '[' && c /= '\n'
+      "--"
+  <|> "--\n"
+  <|> "--"  *> psym p *> many (psym (/= '\n'))
+  <|> "--[\n"
+  <|> "--[" *> psym p *> many (psym (/= '\n'))
+ where
+  p :: Char -> Bool
+  p c = c /= '[' && c /= '\n'
 
 --------------------------------------------------------------------------------
 -- Regex extras

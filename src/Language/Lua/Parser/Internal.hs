@@ -12,37 +12,38 @@ import Language.Lua.Internal
 import Language.Lua.Syntax
 import Language.Lua.Token
 
-import           Control.Applicative
-import           Data.Data
+import Control.Applicative
+import Data.Data
 #if !MIN_VERSION_base(4,8,0)
-import           Data.Foldable       (foldMap)
+import Data.Foldable       (foldMap)
 #endif
-import           Data.List.NonEmpty  (NonEmpty((:|)))
-import qualified Data.List.NonEmpty  as NE
-import           Data.Loc
-import           Data.Maybe          (fromMaybe, isJust)
-import           Data.Monoid
-import           Data.Sequence       (Seq)
-import qualified Data.Sequence       as Seq
-import           GHC.Generics        (Generic)
-import           Lens.Micro
-import           Prelude             hiding (break, repeat, until)
-import           Text.Earley
-import           Text.Earley.Mixfix
-import           Text.Printf         (printf)
+import Data.List.NonEmpty  (NonEmpty((:|)))
+import Data.Loc
+import Data.Maybe          (fromMaybe, isJust)
+import Data.Monoid
+import Data.Sequence       (Seq)
+import GHC.Generics        (Generic)
+import Lens.Micro
+import Prelude             hiding (break, repeat, until)
+import Text.Earley
+import Text.Earley.Mixfix
+import Text.Printf         (printf)
+
+import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Sequence      as Seq
 
 -- | AST node source location and constituent tokens. The tokens are provided
 -- for style-checking purposes; with them, you may assert proper whitespace
 -- protocol, alignment, trailing commas on table constructors, and whatever
 -- other subjectivities.
 data NodeInfo = NodeInfo
-    { _nodeLoc    :: !Loc             -- ^ Source location; spans the entirety of the node.
-    , _nodeTokens :: !(Seq (L Token)) -- ^ Parsed tokens involved in node production.
-    } deriving (Data, Eq, Generic, Show, Typeable)
+  { _nodeLoc    :: !Loc             -- ^ Source location; spans the entirety of the node.
+  , _nodeTokens :: !(Seq (L Token)) -- ^ Parsed tokens involved in node production.
+  } deriving (Data, Eq, Generic, Show, Typeable)
 
 instance Monoid NodeInfo where
-    mempty = NodeInfo mempty mempty
-    mappend (NodeInfo x1 y1) (NodeInfo x2 y2) = NodeInfo (x1 <> x2) (y1 <> y2)
+  mempty = NodeInfo mempty mempty
+  mappend (NodeInfo x1 y1) (NodeInfo x2 y2) = NodeInfo (x1 <> x2) (y1 <> y2)
 
 nodeLoc :: Lens' NodeInfo Loc
 nodeLoc = lens (\(NodeInfo a _) -> a) (\(NodeInfo _ b) a -> NodeInfo a b)
@@ -51,39 +52,39 @@ nodeTokens :: Lens' NodeInfo (Seq (L Token))
 nodeTokens = lens (\(NodeInfo _ b) -> b) (\(NodeInfo a _) b -> NodeInfo a b)
 
 class HasNodeInfo a where
-    nodeInfo :: a -> NodeInfo
+  nodeInfo :: a -> NodeInfo
 
 instance HasNodeInfo NodeInfo where
-    nodeInfo = id
+  nodeInfo = id
 
 instance HasNodeInfo (L Token) where
-    nodeInfo tk = NodeInfo (locOf tk) (Seq.singleton tk)
+  nodeInfo tk = NodeInfo (locOf tk) (Seq.singleton tk)
 
 instance Annotated ast => HasNodeInfo (ast NodeInfo) where
-    nodeInfo = (^. ann)
+  nodeInfo = (^. ann)
 
 instance (HasNodeInfo a, HasNodeInfo b) => HasNodeInfo (a, b) where
-    nodeInfo (a, b) = nodeInfo a <> nodeInfo b
+  nodeInfo (a, b) = nodeInfo a <> nodeInfo b
 
 instance (HasNodeInfo a, HasNodeInfo b, HasNodeInfo c) => HasNodeInfo (a, b, c) where
-    nodeInfo (a, b, c) = nodeInfo a <> nodeInfo b <> nodeInfo c
+  nodeInfo (a, b, c) = nodeInfo a <> nodeInfo b <> nodeInfo c
 
 instance (HasNodeInfo a, HasNodeInfo b, HasNodeInfo c, HasNodeInfo d) => HasNodeInfo (a, b, c, d) where
-    nodeInfo (a, b, c, d) = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d
+  nodeInfo (a, b, c, d) = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d
 
 -- Make explicit instances for these Foldable containers to avoid overlapping instances.
 
 instance HasNodeInfo a => HasNodeInfo [a] where
-    nodeInfo = foldMap nodeInfo
+  nodeInfo = foldMap nodeInfo
 
 instance HasNodeInfo a => HasNodeInfo (Seq a) where
-    nodeInfo = foldMap nodeInfo
+  nodeInfo = foldMap nodeInfo
 
 instance HasNodeInfo a => HasNodeInfo (NonEmpty a) where
-    nodeInfo = foldMap nodeInfo
+  nodeInfo = foldMap nodeInfo
 
 instance HasNodeInfo a => HasNodeInfo (Maybe a) where
-    nodeInfo = foldMap nodeInfo
+  nodeInfo = foldMap nodeInfo
 
 luaReturnStatement  = (\(_,_,x,_,_,_,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
 luaFunctionName     = (\(_,_,_,x,_,_,_,_,_,_,_,_,_,_,_) -> x) <$> grammar
@@ -115,330 +116,331 @@ grammar :: Grammar r ( Prod r String (L Token) (Block NodeInfo)
                      , Prod r String (L Token) (FieldList NodeInfo)
                      )
 grammar = mdo
-    block :: Prod r String (L Token) (Block NodeInfo) <- rule $
-        mkBlock
-        <$> many statement
-        <*> optional returnStatement
+  block :: Prod r String (L Token) (Block NodeInfo) <- rule $
+    mkBlock
+    <$> many statement
+    <*> optional returnStatement
 
-    identList1 :: Prod r String (L Token) (IdentList1 NodeInfo) <- identList1G
+  identList1 :: Prod r String (L Token) (IdentList1 NodeInfo) <- identList1G
 
-    statement :: Prod r String (L Token) (Statement NodeInfo) <- rule $
-            mkEmptyStmt
-            <$> semi
-        <|> mkAssign
-            <$> varList1
-            <*> assign
-            <*> expressionList1
-        <|> mkFunCall
-            <$> functionCall
-        <|> mkLabel
-            <$> label
-            <*> ident
-            <*> label
-        <|> mkBreak
-            <$> break
-        <|> mkGoto
-            <$> goto
-            <*> ident
-        <|> mkDo
-            <$> do'
-            <*> block
-            <*> end
-        <|> mkWhile
-            <$> while
-            <*> expression
-            <*> do'
-            <*> block
-            <*> end
-        <|> mkRepeat
-            <$> repeat
-            <*> block
-            <*> until
-            <*> expression
-        <|> mkIf
-            <$> if'
-            <*> expression
-            <*> then'
-            <*> block
-            <*> many ((,,,)
-                <$> elseif
-                <*> expression
-                <*> then'
-                <*> block)
-            <*> optional ((,)
-                <$> else'
-                <*> block)
-            <*> end
-        <|> mkFor
-            <$> for
-            <*> ident
-            <*> assign
-            <*> expression
-            <*> comma
-            <*> expression
-            <*> optional ((,)
-                <$> comma
-                <*> expression)
-            <*> do'
-            <*> block
-            <*> end
-        <|> mkForIn
-            <$> for
-            <*> identList1
-            <*> in'
-            <*> expressionList1
-            <*> do'
-            <*> block
-            <*> end
-        <|> mkFunAssign
-            <$> function
-            <*> functionName
-            <*> functionBody
-        <|> mkLocalFunAssign
-            <$> local
-            <*> function
-            <*> ident
-            <*> functionBody
-        <|> mkLocalAssign
-            <$> local
-            <*> identList1
-            <*> optional ((,)
-                <$> assign
-                <*> expressionList1)
+  statement :: Prod r String (L Token) (Statement NodeInfo) <- rule $
+        mkEmptyStmt
+      <$> semi
+    <|> mkAssign
+      <$> varList1
+      <*> assign
+      <*> expressionList1
+    <|> mkFunCall
+      <$> functionCall
+    <|> mkLabel
+      <$> label
+      <*> ident
+      <*> label
+    <|> mkBreak
+      <$> break
+    <|> mkGoto
+      <$> goto
+      <*> ident
+    <|> mkDo
+      <$> do'
+      <*> block
+      <*> end
+    <|> mkWhile
+      <$> while
+      <*> expression
+      <*> do'
+      <*> block
+      <*> end
+    <|> mkRepeat
+      <$> repeat
+      <*> block
+      <*> until
+      <*> expression
+    <|> mkIf
+      <$> if'
+      <*> expression
+      <*> then'
+      <*> block
+      <*> many ((,,,)
+        <$> elseif
+        <*> expression
+        <*> then'
+        <*> block)
+      <*> optional ((,)
+        <$> else'
+        <*> block)
+      <*> end
+    <|> mkFor
+      <$> for
+      <*> ident
+      <*> assign
+      <*> expression
+      <*> comma
+      <*> expression
+      <*> optional ((,)
+        <$> comma
+        <*> expression)
+      <*> do'
+      <*> block
+      <*> end
+    <|> mkForIn
+      <$> for
+      <*> identList1
+      <*> in'
+      <*> expressionList1
+      <*> do'
+      <*> block
+      <*> end
+    <|> mkFunAssign
+      <$> function
+      <*> functionName
+      <*> functionBody
+    <|> mkLocalFunAssign
+      <$> local
+      <*> function
+      <*> ident
+      <*> functionBody
+    <|> mkLocalAssign
+      <$> local
+      <*> identList1
+      <*> optional ((,)
+          <$> assign
+          <*> expressionList1)
 
-    returnStatement :: Prod r String (L Token) (ReturnStatement NodeInfo) <- rule $
-        mkReturnStatement
-        <$> return'
-        <*> expressionList
-        <*> optional semi
+  returnStatement :: Prod r String (L Token) (ReturnStatement NodeInfo) <- rule $
+    mkReturnStatement
+    <$> return'
+    <*> expressionList
+    <*> optional semi
 
-    identSepByDot <- identSepByDotG
+  identSepByDot <- identSepByDotG
 
-    functionName :: Prod r String (L Token) (FunctionName NodeInfo) <- rule $
-        mkFunctionName
-        <$> identSepByDot
-        <*> optional ((,)
-            <$> colon
-            <*> ident)
+  functionName :: Prod r String (L Token) (FunctionName NodeInfo) <- rule $
+    mkFunctionName
+    <$> identSepByDot
+    <*> optional ((,)
+      <$> colon
+      <*> ident)
 
-    varList1 :: Prod r String (L Token) (VariableList1 NodeInfo) <-
-        uncurry VariableList1 <$$> sepBy1 var comma
+  varList1 :: Prod r String (L Token) (VariableList1 NodeInfo) <-
+    uncurry VariableList1 <$$> sepBy1 var comma
 
-    var :: Prod r String (L Token) (Variable NodeInfo) <- rule $
-            mkVarIdent
-            <$> ident
-        <|> mkVarField
-            <$> prefixExpression
-            <*> lbracket
-            <*> expression
-            <*> rbracket
-        <|> mkVarFieldName
-            <$> prefixExpression
-            <*> dot
-            <*> ident
+  var :: Prod r String (L Token) (Variable NodeInfo) <- rule $
+        mkVarIdent
+      <$> ident
+    <|> mkVarField
+      <$> prefixExpression
+      <*> lbracket
+      <*> expression
+      <*> rbracket
+    <|> mkVarFieldName
+      <$> prefixExpression
+      <*> dot
+      <*> ident
 
-    expressionList :: Prod r String (L Token) (ExpressionList NodeInfo) <-
-        uncurry ExpressionList <$$> sepBy expression comma
+  expressionList :: Prod r String (L Token) (ExpressionList NodeInfo) <-
+    uncurry ExpressionList <$$> sepBy expression comma
 
-    expressionList1 :: Prod r String (L Token) (ExpressionList1 NodeInfo) <-
-        uncurry ExpressionList1 <$$> sepBy1 expression comma
+  expressionList1 :: Prod r String (L Token) (ExpressionList1 NodeInfo) <-
+    uncurry ExpressionList1 <$$> sepBy1 expression comma
 
-    expression :: Prod r String (L Token) (Expression NodeInfo) <-
-        mixfixExpression expressionTable atomicExpression combineMixfix
+  expression :: Prod r String (L Token) (Expression NodeInfo) <-
+    mixfixExpression expressionTable atomicExpression combineMixfix
 
-    atomicExpression :: Prod r String (L Token) (Expression NodeInfo) <- rule $
-            mkNil        <$> nil
-        <|> mkBool True  <$> true
-        <|> mkBool False <$> false
-        <|> mkInteger    <$> intLit
-        <|> mkFloat      <$> floatLit
-        <|> mkString     <$> stringLit
-        <|> mkVararg     <$> vararg
-        <|> mkFunDef     <$> function <*> functionBody
-        <|> mkPrefixExp  <$> prefixExpression
-        <|> mkTableCtor  <$> tableConstructor
+  atomicExpression :: Prod r String (L Token) (Expression NodeInfo) <- rule $
+        mkNil        <$> nil
+    <|> mkBool True  <$> true
+    <|> mkBool False <$> false
+    <|> mkInteger    <$> intLit
+    <|> mkFloat      <$> floatLit
+    <|> mkString     <$> stringLit
+    <|> mkVararg     <$> vararg
+    <|> mkFunDef     <$> function <*> functionBody
+    <|> mkPrefixExp  <$> prefixExpression
+    <|> mkTableCtor  <$> tableConstructor
 
-    prefixExpression :: Prod r String (L Token) (PrefixExpression NodeInfo) <- rule $
-            mkPrefixVar
-            <$> var
-        <|> mkPrefixFunCall
-            <$> functionCall
-        <|> mkParens
-            <$> lparen
-            <*> expression
-            <*> rparen
+  prefixExpression :: Prod r String (L Token) (PrefixExpression NodeInfo) <- rule $
+        mkPrefixVar
+      <$> var
+    <|> mkPrefixFunCall
+      <$> functionCall
+    <|> mkParens
+      <$> lparen
+      <*> expression
+      <*> rparen
 
-    functionCall :: Prod r String (L Token) (FunctionCall NodeInfo) <- rule $
-        mkFunctionCall
-        <$> prefixExpression
-        <*> optional ((,)
-            <$> colon
-            <*> ident)
-        <*> functionArgs
+  functionCall :: Prod r String (L Token) (FunctionCall NodeInfo) <- rule $
+    mkFunctionCall
+      <$> prefixExpression
+      <*> optional ((,)
+        <$> colon
+        <*> ident)
+      <*> functionArgs
 
-    functionArgs :: Prod r String (L Token) (FunctionArgs NodeInfo) <- rule $
-            mkArgs
-            <$> lparen
-            <*> expressionList
-            <*> rparen
-        <|> mkArgsTable
-            <$> tableConstructor
-        <|> mkArgsString
-            <$> stringLit
+  functionArgs :: Prod r String (L Token) (FunctionArgs NodeInfo) <- rule $
+        mkArgs
+      <$> lparen
+      <*> expressionList
+      <*> rparen
+    <|> mkArgsTable
+      <$> tableConstructor
+    <|> mkArgsString
+      <$> stringLit
 
     identList <- identListG
 
-    functionBody :: Prod r String (L Token) (FunctionBody NodeInfo) <- rule $
-            mkFunctionBody
-            <$> lparen
-            <*> optional paramList
-            <*> rparen
-            <*> block
-            <*> end
+  functionBody :: Prod r String (L Token) (FunctionBody NodeInfo) <- rule $
+    mkFunctionBody
+    <$> lparen
+    <*> optional paramList
+    <*> rparen
+    <*> block
+    <*> end
 
-    paramList :: Prod r String (L Token) (ParamList NodeInfo) <- rule $
-            ParamListVararg . nodeInfo <$> vararg
-        <|> mkParamList
-            <$> identList
-            <*> optional ((,)
-                <$> comma
-                <*> vararg)
+  paramList :: Prod r String (L Token) (ParamList NodeInfo) <- rule $
+        ParamListVararg . nodeInfo
+      <$> vararg
+    <|> mkParamList
+      <$> identList
+      <*> optional ((,)
+          <$> comma
+          <*> vararg)
 
 
-    tableConstructor :: Prod r String (L Token) (TableConstructor NodeInfo) <- rule $
-        mkTableConstructor
-        <$> lbrace
-        <*> optional fieldList
-        <*> rbrace
+  tableConstructor :: Prod r String (L Token) (TableConstructor NodeInfo) <- rule $
+    mkTableConstructor
+    <$> lbrace
+    <*> optional fieldList
+    <*> rbrace
 
-    field :: Prod r String (L Token) (Field NodeInfo) <- rule $
-            mkFieldExp
-            <$> lbracket
-            <*> expression
-            <*> rbracket
-            <*> assign
-            <*> expression
-        <|> mkFieldIdent
-            <$> ident
-            <*> assign
-            <*> expression
-        <|> mkField
-            <$> expression
+  field :: Prod r String (L Token) (Field NodeInfo) <- rule $
+        mkFieldExp
+      <$> lbracket
+      <*> expression
+      <*> rbracket
+      <*> assign
+      <*> expression
+    <|> mkFieldIdent
+      <$> ident
+      <*> assign
+      <*> expression
+    <|> mkField
+      <$> expression
 
-    let fieldSep = comma <|> semi
-    fields <- sepBy1 field fieldSep
-    fieldList :: Prod r String (L Token) (FieldList NodeInfo) <- rule $
-            mkFieldList
-            <$> fields
-            <*> optional fieldSep
+  let fieldSep = comma <|> semi
+  fields <- sepBy1 field fieldSep
+  fieldList :: Prod r String (L Token) (FieldList NodeInfo) <- rule $
+    mkFieldList
+      <$> fields
+      <*> optional fieldSep
 
-    return ( block
-           , statement
-           , returnStatement
-           , functionName
-           , var
-           , expression
-           , atomicExpression
-           , prefixExpression
-           , functionCall
-           , functionArgs
-           , functionBody
-           , paramList
-           , tableConstructor
-           , field
-           , fieldList
-           )
-  where
-    -- http://www.lua.org/manual/5.3/manual.html#3.4.8
-    expressionTable :: [[([Maybe (Prod r String (L Token) (L Token))], Associativity)]]
-    expressionTable =
-        [ [ (binop TkOr           "'or'",  LeftAssoc)  ]
+  return ( block
+         , statement
+         , returnStatement
+         , functionName
+         , var
+         , expression
+         , atomicExpression
+         , prefixExpression
+         , functionCall
+         , functionArgs
+         , functionBody
+         , paramList
+         , tableConstructor
+         , field
+         , fieldList
+         )
+ where
+  -- http://www.lua.org/manual/5.3/manual.html#3.4.8
+  expressionTable :: [[([Maybe (Prod r String (L Token) (L Token))], Associativity)]]
+  expressionTable =
+    [ [ (binop TkOr           "'or'",  LeftAssoc)  ]
 
-        , [ (binop TkAnd          "'and'", LeftAssoc)  ]
+    , [ (binop TkAnd          "'and'", LeftAssoc)  ]
 
-        , [ (binop TkLt           "'<'",   LeftAssoc)
-          , (binop TkGt           "'>'",   LeftAssoc)
-          , (binop TkLeq          "'<='",  LeftAssoc)
-          , (binop TkGeq          "'>='",  LeftAssoc)
-          , (binop TkNeq          "'~='",  LeftAssoc)
-          , (binop TkEq           "'=='",  LeftAssoc)  ]
+    , [ (binop TkLt           "'<'",   LeftAssoc)
+      , (binop TkGt           "'>'",   LeftAssoc)
+      , (binop TkLeq          "'<='",  LeftAssoc)
+      , (binop TkGeq          "'>='",  LeftAssoc)
+      , (binop TkNeq          "'~='",  LeftAssoc)
+      , (binop TkEq           "'=='",  LeftAssoc)  ]
 
-        , [ (binop TkBitwiseOr    "'|'",   LeftAssoc)  ]
+    , [ (binop TkBitwiseOr    "'|'",   LeftAssoc)  ]
 
-        , [ (binop TkTilde        "'~'",   LeftAssoc)  ]
+    , [ (binop TkTilde        "'~'",   LeftAssoc)  ]
 
-        , [ (binop TkBitwiseAnd   "'&'",   LeftAssoc)  ]
+    , [ (binop TkBitwiseAnd   "'&'",   LeftAssoc)  ]
 
-        , [ (binop TkLShift       "'<<'",  LeftAssoc)
-          , (binop TkRShift       "'>>'",  LeftAssoc)  ]
+    , [ (binop TkLShift       "'<<'",  LeftAssoc)
+      , (binop TkRShift       "'>>'",  LeftAssoc)  ]
 
-        , [ (binop TkConcat       "'..'",  RightAssoc) ]
+    , [ (binop TkConcat       "'..'",  RightAssoc) ]
 
-        , [ (binop TkPlus         "'+'",   LeftAssoc)
-          , (binop TkDash         "'-'",   LeftAssoc)  ]
+    , [ (binop TkPlus         "'+'",   LeftAssoc)
+      , (binop TkDash         "'-'",   LeftAssoc)  ]
 
-        , [ (binop TkMult         "'*'",   LeftAssoc)
-          , (binop TkFloatDiv     "'/'",   LeftAssoc)
-          , (binop TkFloorDiv     "'//'",  LeftAssoc)
-          , (binop TkModulo       "'%'",   LeftAssoc)  ]
+    , [ (binop TkMult         "'*'",   LeftAssoc)
+      , (binop TkFloatDiv     "'/'",   LeftAssoc)
+      , (binop TkFloorDiv     "'//'",  LeftAssoc)
+      , (binop TkModulo       "'%'",   LeftAssoc)  ]
 
-        , [ unop   TkNot          "'not'"
-          , unop   TkLength       "'#'"
-          , unop   TkDash         "'-'"
-          , unop   TkTilde        "'~'"                ]
+    , [ unop   TkNot          "'not'"
+      , unop   TkLength       "'#'"
+      , unop   TkDash         "'-'"
+      , unop   TkTilde        "'~'"                ]
 
-        , [ (binop TkExponent     "'^'",   RightAssoc) ]
-        ]
-      where
-        binop :: Token -> String -> [Maybe (Prod r String (L Token) (L Token))]
-        binop tk s = [Nothing, Just (locSymbol tk <?> s), Nothing]
+    , [ (binop TkExponent     "'^'",   RightAssoc) ]
+    ]
+   where
+    binop :: Token -> String -> [Maybe (Prod r String (L Token) (L Token))]
+    binop tk s = [Nothing, Just (locSymbol tk <?> s), Nothing]
 
-        unop :: Token -> String -> ([Maybe (Prod r String (L Token) (L Token))], Associativity)
-        unop tk s = ([Just (locSymbol tk <?> s), Nothing], RightAssoc)
+    unop :: Token -> String -> ([Maybe (Prod r String (L Token) (L Token))], Associativity)
+    unop tk s = ([Just (locSymbol tk <?> s), Nothing], RightAssoc)
 
-    combineMixfix :: [Maybe (L Token)] -> [Expression NodeInfo] -> Expression NodeInfo
-    combineMixfix (viewBinop -> Just tk) [e1, e2] = Binop (nodeInfo e1 <> nodeInfo tk <> nodeInfo e2) (tk2binop tk) e1 e2
-    combineMixfix (viewUnop -> Just tk) [e] = Unop (nodeInfo tk <> nodeInfo e) (tk2unop tk) e
-    combineMixfix xs ys = error $ printf "Whoops, parser is busted.\nHoles: %s\nExprs: %s\n" (show xs) (show ys)
+  combineMixfix :: [Maybe (L Token)] -> [Expression NodeInfo] -> Expression NodeInfo
+  combineMixfix (viewBinop -> Just tk) [e1, e2] = Binop (nodeInfo e1 <> nodeInfo tk <> nodeInfo e2) (tk2binop tk) e1 e2
+  combineMixfix (viewUnop -> Just tk) [e] = Unop (nodeInfo tk <> nodeInfo e) (tk2unop tk) e
+  combineMixfix xs ys = error $ printf "Whoops, parser is busted.\nHoles: %s\nExprs: %s\n" (show xs) (show ys)
 
-    viewBinop :: [Maybe (L Token)] -> Maybe (L Token)
-    viewBinop [Nothing, x@(Just _), Nothing] = x
-    viewBinop _ = Nothing
+  viewBinop :: [Maybe (L Token)] -> Maybe (L Token)
+  viewBinop [Nothing, x@(Just _), Nothing] = x
+  viewBinop _ = Nothing
 
-    viewUnop :: [Maybe (L Token)] -> Maybe (L Token)
-    viewUnop [x@(Just _), Nothing] = x
-    viewUnop _ = Nothing
+  viewUnop :: [Maybe (L Token)] -> Maybe (L Token)
+  viewUnop [x@(Just _), Nothing] = x
+  viewUnop _ = Nothing
 
-    tk2binop :: L Token -> Binop NodeInfo
-    tk2binop tk@(L _ TkPlus)       = Plus       (nodeInfo tk)
-    tk2binop tk@(L _ TkDash)       = Minus      (nodeInfo tk)
-    tk2binop tk@(L _ TkMult)       = Mult       (nodeInfo tk)
-    tk2binop tk@(L _ TkFloatDiv)   = FloatDiv   (nodeInfo tk)
-    tk2binop tk@(L _ TkFloorDiv)   = FloorDiv   (nodeInfo tk)
-    tk2binop tk@(L _ TkExponent)   = Exponent   (nodeInfo tk)
-    tk2binop tk@(L _ TkModulo)     = Modulo     (nodeInfo tk)
-    tk2binop tk@(L _ TkBitwiseAnd) = BitwiseAnd (nodeInfo tk)
-    tk2binop tk@(L _ TkTilde)      = BitwiseXor (nodeInfo tk)
-    tk2binop tk@(L _ TkBitwiseOr)  = BitwiseOr  (nodeInfo tk)
-    tk2binop tk@(L _ TkRShift)     = Rshift     (nodeInfo tk)
-    tk2binop tk@(L _ TkLShift)     = Lshift     (nodeInfo tk)
-    tk2binop tk@(L _ TkConcat)     = Concat     (nodeInfo tk)
-    tk2binop tk@(L _ TkLt)         = Lt         (nodeInfo tk)
-    tk2binop tk@(L _ TkLeq)        = Leq        (nodeInfo tk)
-    tk2binop tk@(L _ TkGt)         = Gt         (nodeInfo tk)
-    tk2binop tk@(L _ TkGeq)        = Geq        (nodeInfo tk)
-    tk2binop tk@(L _ TkEq)         = Eq         (nodeInfo tk)
-    tk2binop tk@(L _ TkNeq)        = Neq        (nodeInfo tk)
-    tk2binop tk@(L _ TkAnd)        = And        (nodeInfo tk)
-    tk2binop tk@(L _ TkOr)         = Or         (nodeInfo tk)
-    tk2binop (L _ tk)              = error $ printf "Token %s does not correspond to a binary op" (show tk)
+  tk2binop :: L Token -> Binop NodeInfo
+  tk2binop tk@(L _ TkPlus)       = Plus       (nodeInfo tk)
+  tk2binop tk@(L _ TkDash)       = Minus      (nodeInfo tk)
+  tk2binop tk@(L _ TkMult)       = Mult       (nodeInfo tk)
+  tk2binop tk@(L _ TkFloatDiv)   = FloatDiv   (nodeInfo tk)
+  tk2binop tk@(L _ TkFloorDiv)   = FloorDiv   (nodeInfo tk)
+  tk2binop tk@(L _ TkExponent)   = Exponent   (nodeInfo tk)
+  tk2binop tk@(L _ TkModulo)     = Modulo     (nodeInfo tk)
+  tk2binop tk@(L _ TkBitwiseAnd) = BitwiseAnd (nodeInfo tk)
+  tk2binop tk@(L _ TkTilde)      = BitwiseXor (nodeInfo tk)
+  tk2binop tk@(L _ TkBitwiseOr)  = BitwiseOr  (nodeInfo tk)
+  tk2binop tk@(L _ TkRShift)     = Rshift     (nodeInfo tk)
+  tk2binop tk@(L _ TkLShift)     = Lshift     (nodeInfo tk)
+  tk2binop tk@(L _ TkConcat)     = Concat     (nodeInfo tk)
+  tk2binop tk@(L _ TkLt)         = Lt         (nodeInfo tk)
+  tk2binop tk@(L _ TkLeq)        = Leq        (nodeInfo tk)
+  tk2binop tk@(L _ TkGt)         = Gt         (nodeInfo tk)
+  tk2binop tk@(L _ TkGeq)        = Geq        (nodeInfo tk)
+  tk2binop tk@(L _ TkEq)         = Eq         (nodeInfo tk)
+  tk2binop tk@(L _ TkNeq)        = Neq        (nodeInfo tk)
+  tk2binop tk@(L _ TkAnd)        = And        (nodeInfo tk)
+  tk2binop tk@(L _ TkOr)         = Or         (nodeInfo tk)
+  tk2binop (L _ tk)              = error $ printf "Token %s does not correspond to a binary op" (show tk)
 
-    tk2unop :: L Token -> Unop NodeInfo
-    tk2unop tk@(L _ TkNot)    = Not        (nodeInfo tk)
-    tk2unop tk@(L _ TkLength) = Length     (nodeInfo tk)
-    tk2unop tk@(L _ TkDash)   = Negate     (nodeInfo tk)
-    tk2unop tk@(L _ TkTilde)  = BitwiseNot (nodeInfo tk)
-    tk2unop (L _ tk)          = error $ printf "Token %s does not correspond to a unary op" (show tk)
+  tk2unop :: L Token -> Unop NodeInfo
+  tk2unop tk@(L _ TkNot)    = Not        (nodeInfo tk)
+  tk2unop tk@(L _ TkLength) = Length     (nodeInfo tk)
+  tk2unop tk@(L _ TkDash)   = Negate     (nodeInfo tk)
+  tk2unop tk@(L _ TkTilde)  = BitwiseNot (nodeInfo tk)
+  tk2unop (L _ tk)          = error $ printf "Token %s does not correspond to a unary op" (show tk)
 
 mkBlock :: [Statement NodeInfo] -> Maybe (ReturnStatement NodeInfo) -> Block NodeInfo
 mkBlock a b = Block (nodeInfo a <> nodeInfo b) a b
@@ -471,86 +473,86 @@ mkRepeat :: L Token -> Block NodeInfo -> L Token -> Expression NodeInfo -> State
 mkRepeat a b c d = Repeat (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d) (injectLoc a b) d
 
 mkIf
-    :: L Token
-    -> Expression NodeInfo
-    -> L Token
-    -> Block NodeInfo
-    -> [(L Token, Expression NodeInfo, L Token, Block NodeInfo)]
-    -> Maybe (L Token, Block NodeInfo)
-    -> L Token
-    -> Statement NodeInfo
+  :: L Token
+  -> Expression NodeInfo
+  -> L Token
+  -> Block NodeInfo
+  -> [(L Token, Expression NodeInfo, L Token, Block NodeInfo)]
+  -> Maybe (L Token, Block NodeInfo)
+  -> L Token
+  -> Statement NodeInfo
 mkIf a b c d e f g =
-    If (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e <> nodeInfo f <> nodeInfo g)
-       ((b, injectLoc c d) :| map (\(_,x,y,z) -> (x, injectLoc y z)) e)
-       (uncurry injectLoc <$> f)
+  If (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e <> nodeInfo f <> nodeInfo g)
+     ((b, injectLoc c d) :| map (\(_,x,y,z) -> (x, injectLoc y z)) e)
+     (uncurry injectLoc <$> f)
 
 mkFor
-    :: L Token
-    -> Ident NodeInfo
-    -> L Token
-    -> Expression NodeInfo
-    -> L Token
-    -> Expression NodeInfo
-    -> Maybe (L Token, Expression NodeInfo)
-    -> L Token
-    -> Block NodeInfo
-    -> L Token
-    -> Statement NodeInfo
+  :: L Token
+  -> Ident NodeInfo
+  -> L Token
+  -> Expression NodeInfo
+  -> L Token
+  -> Expression NodeInfo
+  -> Maybe (L Token, Expression NodeInfo)
+  -> L Token
+  -> Block NodeInfo
+  -> L Token
+  -> Statement NodeInfo
 mkFor a b c d e f g h i j = For ni b d f (snd <$> g) (injectLoc h i)
-  where
-    ni :: NodeInfo
-    ni = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e <>
-         nodeInfo f <> nodeInfo g <> nodeInfo h <> nodeInfo i <> nodeInfo j
+ where
+  ni :: NodeInfo
+  ni = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e <>
+       nodeInfo f <> nodeInfo g <> nodeInfo h <> nodeInfo i <> nodeInfo j
 
 mkForIn
-    :: L Token
-    -> IdentList1 NodeInfo
-    -> L Token
-    -> ExpressionList1 NodeInfo
-    -> L Token
-    -> Block NodeInfo
-    -> L Token
-    -> Statement NodeInfo
+  :: L Token
+  -> IdentList1 NodeInfo
+  -> L Token
+  -> ExpressionList1 NodeInfo
+  -> L Token
+  -> Block NodeInfo
+  -> L Token
+  -> Statement NodeInfo
 mkForIn a b c d e f g = ForIn ni b d (injectLoc e f)
-  where
-    ni :: NodeInfo
-    ni = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <>
-         nodeInfo e <> nodeInfo f <> nodeInfo g
+ where
+  ni :: NodeInfo
+  ni = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <>
+       nodeInfo e <> nodeInfo f <> nodeInfo g
 
 mkFunAssign
-    :: L Token
-    -> FunctionName NodeInfo
-    -> FunctionBody NodeInfo
-    -> Statement NodeInfo
+  :: L Token
+  -> FunctionName NodeInfo
+  -> FunctionBody NodeInfo
+  -> Statement NodeInfo
 mkFunAssign a b c = FunAssign (nodeInfo a <> nodeInfo b <> nodeInfo c) b c
 
 mkLocalFunAssign
-    :: L Token
-    -> L Token
-    -> Ident NodeInfo
-    -> FunctionBody NodeInfo
-    -> Statement NodeInfo
+  :: L Token
+  -> L Token
+  -> Ident NodeInfo
+  -> FunctionBody NodeInfo
+  -> Statement NodeInfo
 mkLocalFunAssign a b c d = LocalFunAssign (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d) c d
 
 mkLocalAssign
-    :: L Token
-    -> IdentList1 NodeInfo
-    -> Maybe (L Token, ExpressionList1 NodeInfo)
-    -> Statement NodeInfo
+  :: L Token
+  -> IdentList1 NodeInfo
+  -> Maybe (L Token, ExpressionList1 NodeInfo)
+  -> Statement NodeInfo
 mkLocalAssign a b c = LocalAssign (nodeInfo a <> nodeInfo b <> nodeInfo c) b c'
-  where
-    c' :: ExpressionList NodeInfo
-    c' = maybe (ExpressionList mempty [])
-               (\(_, ExpressionList1 n es) -> ExpressionList n (NE.toList es))
-               c
+ where
+  c' :: ExpressionList NodeInfo
+  c' = maybe (ExpressionList mempty [])
+             (\(_, ExpressionList1 n es) -> ExpressionList n (NonEmpty.toList es))
+             c
 
 mkReturnStatement :: L Token -> ExpressionList NodeInfo -> Maybe (L Token) -> ReturnStatement NodeInfo
 mkReturnStatement a b c = ReturnStatement (nodeInfo a <> nodeInfo b <> nodeInfo c) b
 
 mkFunctionName
-    :: IdentList1 NodeInfo
-    -> Maybe (L Token, Ident NodeInfo)
-    -> FunctionName NodeInfo
+  :: IdentList1 NodeInfo
+  -> Maybe (L Token, Ident NodeInfo)
+  -> FunctionName NodeInfo
 mkFunctionName a b = FunctionName (nodeInfo a <> nodeInfo b) a (snd <$> b)
 
 mkVarIdent :: Ident NodeInfo -> Variable NodeInfo
@@ -602,10 +604,10 @@ mkParens :: L Token -> Expression NodeInfo -> L Token -> PrefixExpression NodeIn
 mkParens a b c = Parens (nodeInfo a <> nodeInfo b <> nodeInfo c) b
 
 mkFunctionCall
-    :: PrefixExpression NodeInfo
-    -> Maybe (L Token, Ident NodeInfo)
-    -> FunctionArgs NodeInfo
-    -> FunctionCall NodeInfo
+  :: PrefixExpression NodeInfo
+  -> Maybe (L Token, Ident NodeInfo)
+  -> FunctionArgs NodeInfo
+  -> FunctionCall NodeInfo
 mkFunctionCall a (Just (b,c)) d = MethodCall (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d) a c d
 mkFunctionCall a Nothing b      = FunctionCall (nodeInfo a <> nodeInfo b) a b
 
@@ -620,24 +622,26 @@ mkArgsString a@(L _ (TkStringLit s)) = ArgsString (nodeInfo a) s
 mkArgsString tk = error $ printf "mkArgsString: %s is not a TkStringLit" (show tk)
 
 mkParamList
-    :: IdentList NodeInfo
-    -> Maybe (L Token, L Token)
-    -> ParamList NodeInfo
+  :: IdentList NodeInfo
+  -> Maybe (L Token, L Token)
+  -> ParamList NodeInfo
 mkParamList a b = ParamList (nodeInfo a <> nodeInfo b) a (isJust b)
 
 mkFunctionBody
-    :: L Token
-    -> Maybe (ParamList NodeInfo)
-    -> L Token
-    -> Block NodeInfo
-    -> L Token
-    -> FunctionBody NodeInfo
+  :: L Token
+  -> Maybe (ParamList NodeInfo)
+  -> L Token
+  -> Block NodeInfo
+  -> L Token
+  -> FunctionBody NodeInfo
 mkFunctionBody a b c d e = FunctionBody ni b (injectLoc c d)
-  where
-    ni = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e
+ where
+  ni = nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e
 
 mkTableConstructor :: L Token -> Maybe (FieldList NodeInfo) -> L Token -> TableConstructor NodeInfo
-mkTableConstructor a b c = TableConstructor (nodeInfo a <> nodeInfo b <> nodeInfo c) (fromMaybe (FieldList mempty []) b)
+mkTableConstructor a b c =
+  TableConstructor (nodeInfo a <> nodeInfo b <> nodeInfo c)
+                   (fromMaybe (FieldList mempty []) b)
 
 mkFieldExp :: L Token -> Expression NodeInfo -> L Token -> L Token -> Expression NodeInfo -> Field NodeInfo
 mkFieldExp a b c d e = FieldExp (nodeInfo a <> nodeInfo b <> nodeInfo c <> nodeInfo d <> nodeInfo e) b e
@@ -649,7 +653,7 @@ mkField :: Expression NodeInfo -> Field NodeInfo
 mkField a = Field (nodeInfo a) a
 
 mkFieldList :: (NodeInfo, NonEmpty (Field NodeInfo)) -> Maybe (L Token) -> FieldList NodeInfo
-mkFieldList (a,b) c = FieldList (a <> nodeInfo c) (NE.toList b)
+mkFieldList (a,b) c = FieldList (a <> nodeInfo c) (NonEmpty.toList b)
 
 -- Inspect a block to see if it contains a location or not; if not (i.e. it's
 -- completely empty, as in "do end", we simply set its location to where it
@@ -657,31 +661,33 @@ mkFieldList (a,b) c = FieldList (a <> nodeInfo c) (NE.toList b)
 -- report the location of an empty block as a warning, if they so desire.
 injectLoc :: L Token -> Block NodeInfo -> Block NodeInfo
 injectLoc a b =
-    case b^.ann.nodeLoc of
-        NoLoc -> b & ann.nodeLoc .~ locEnd (locOf a)
-        _     -> b
+  case b^.ann.nodeLoc of
+    NoLoc -> b & ann.nodeLoc .~ locEnd (locOf a)
+    _     -> b
 
 --------------------------------------------------------------------------------
 -- Combinators
 
-sepBy :: (HasNodeInfo a, HasNodeInfo sep)
-      => Prod r e t a
-      -> Prod r e t sep
-      -> Grammar r (Prod r e t (NodeInfo, [a]))
+sepBy
+  :: (HasNodeInfo a, HasNodeInfo sep)
+  => Prod r e t a
+  -> Prod r e t sep
+  -> Grammar r (Prod r e t (NodeInfo, [a]))
 sepBy f sep = do
-    fs <- sepBy1 f sep
-    rule $ (_2 %~ NE.toList) <$> fs
-       <|> pure mempty
+  fs <- sepBy1 f sep
+  rule $ (_2 %~ NonEmpty.toList) <$> fs
+     <|> pure mempty
 
-sepBy1 :: forall r e t a sep. (HasNodeInfo a, HasNodeInfo sep)
-       => Prod r e t a
-       -> Prod r e t sep
-       -> Grammar r (Prod r e t (NodeInfo, NonEmpty a))
+sepBy1
+  :: forall r e t a sep. (HasNodeInfo a, HasNodeInfo sep)
+  => Prod r e t a
+  -> Prod r e t sep
+  -> Grammar r (Prod r e t (NodeInfo, NonEmpty a))
 sepBy1 f sep = mdo
-    fs :: Prod r e t (NodeInfo, [a]) <-
-        rule $ liftA3 (\a b (c,d) -> (nodeInfo a <> nodeInfo b <> c, b:d)) sep f fs
-           <|> pure mempty
-    rule $ liftA2 (\a (b,c) -> (nodeInfo a <> b, a :| c)) f fs
+  fs :: Prod r e t (NodeInfo, [a]) <-
+    rule $ liftA3 (\a b (c,d) -> (nodeInfo a <> nodeInfo b <> c, b:d)) sep f fs
+      <|> pure mempty
+  rule $ liftA2 (\a (b,c) -> (nodeInfo a <> b, a :| c)) f fs
 
 --------------------------------------------------------------------------------
 -- Token productions
@@ -721,10 +727,10 @@ false = locSymbol TkFalse <?> "'false'"
 
 floatLit :: Prod r String (L Token) (L Token)
 floatLit = locSatisfy isFloatLit <?> "float"
-  where
-    isFloatLit :: Token -> Bool
-    isFloatLit (TkFloatLit _) = True
-    isFloatLit _ = False
+ where
+  isFloatLit :: Token -> Bool
+  isFloatLit (TkFloatLit _) = True
+  isFloatLit _ = False
 
 for :: Prod r String (L Token) (L Token)
 for = locSymbol TkFor <?> "'for'"
@@ -737,10 +743,10 @@ goto = locSymbol TkGoto <?> "'goto'"
 
 ident :: Prod r String (L Token) (Ident NodeInfo)
 ident = (\tk@(L _ (TkIdent s)) -> Ident (nodeInfo tk) s) <$> locSatisfy isIdent <?> "'ident'"
-  where
-    isIdent :: Token -> Bool
-    isIdent (TkIdent _) = True
-    isIdent _ = False
+ where
+  isIdent :: Token -> Bool
+  isIdent (TkIdent _) = True
+  isIdent _ = False
 
 identListG :: Grammar r (Prod r String (L Token) (IdentList NodeInfo))
 identListG = uncurry IdentList <$$> sepBy ident comma
@@ -759,10 +765,10 @@ in' = locSymbol TkIn <?> "'in'"
 
 intLit :: Prod r String (L Token) (L Token)
 intLit = locSatisfy isIntLit <?> "integer"
-  where
-    isIntLit :: Token -> Bool
-    isIntLit (TkIntLit _) = True
-    isIntLit _ = False
+ where
+  isIntLit :: Token -> Bool
+  isIntLit (TkIntLit _) = True
+  isIntLit _ = False
 
 lbrace :: Prod r String (L Token) (L Token)
 lbrace = locSymbol TkLBrace <?> "'{'"
@@ -799,10 +805,10 @@ semi = locSymbol TkSemi <?> "';'"
 
 stringLit :: Prod r String (L Token) (L Token)
 stringLit = locSatisfy isStringLit <?> "string"
-  where
-    isStringLit :: Token -> Bool
-    isStringLit (TkStringLit _) = True
-    isStringLit _ = False
+ where
+  isStringLit :: Token -> Bool
+  isStringLit (TkStringLit _) = True
+  isStringLit _ = False
 
 then' :: Prod r String (L Token) (L Token)
 then' = locSymbol TkThen <?> "'then'"

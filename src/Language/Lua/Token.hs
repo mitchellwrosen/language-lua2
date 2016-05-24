@@ -7,68 +7,68 @@ import Data.Data
 import GHC.Generics (Generic)
 
 data Token
-    = TkAnd         -- ^ @and@
-    | TkBreak       -- ^ @break@
-    | TkDo          -- ^ @do@
-    | TkElse        -- ^ @else@
-    | TkElseif      -- ^ @elseif@
-    | TkEnd         -- ^ @end@
-    | TkFalse       -- ^ @false@
-    | TkFor         -- ^ @for@
-    | TkFunction    -- ^ @function@
-    | TkGoto        -- ^ @goto@
-    | TkIf          -- ^ @if@
-    | TkIn          -- ^ @in@
-    | TkLocal       -- ^ @local@
-    | TkNil         -- ^ @nil@
-    | TkNot         -- ^ @not@
-    | TkOr          -- ^ @or@
-    | TkRepeat      -- ^ @repeat@
-    | TkReturn      -- ^ @return@
-    | TkThen        -- ^ @then@
-    | TkTrue        -- ^ @true@
-    | TkUntil       -- ^ @until@
-    | TkWhile       -- ^ @while@
-    | TkPlus        -- ^ @+@
-    | TkDash        -- ^ @\-@
-    | TkMult        -- ^ @\*@
-    | TkFloatDiv    -- ^ @/@
-    | TkModulo      -- ^ @%@
-    | TkExponent    -- ^ @^@
-    | TkLength      -- ^ @#@
-    | TkBitwiseAnd  -- ^ @&@
-    | TkTilde       -- ^ @~@
-    | TkBitwiseOr   -- ^ @|@
-    | TkLShift      -- ^ @<<@
-    | TkRShift      -- ^ @\>\>@
-    | TkFloorDiv    -- ^ @//@
-    | TkEq          -- ^ @==@
-    | TkNeq         -- ^ @~=@
-    | TkLeq         -- ^ @<=@
-    | TkGeq         -- ^ @\>=@
-    | TkLt          -- ^ @<@
-    | TkGt          -- ^ @\>@
-    | TkAssign      -- ^ @=@
-    | TkLParen      -- ^ @(@
-    | TkRParen      -- ^ @)@
-    | TkLBrace      -- ^ @{@
-    | TkRBrace      -- ^ @}@
-    | TkLBracket    -- ^ @[@
-    | TkRBracket    -- ^ @]@
-    | TkLabel       -- ^ @::@
-    | TkSemi        -- ^ @;@
-    | TkColon       -- ^ @:@
-    | TkComma       -- ^ @,@
-    | TkDot         -- ^ @.@
-    | TkConcat      -- ^ @..@
-    | TkVararg      -- ^ @...@
-    | TkQuote       -- ^ @'@
-    | TkDoubleQuote -- ^ @"@
-    | TkIdent String
-    | TkStringLit String
-    | TkIntLit String
-    | TkFloatLit String
-    deriving (Data, Eq, Generic, Show, Typeable)
+  = TkAnd         -- ^ @and@
+  | TkBreak       -- ^ @break@
+  | TkDo          -- ^ @do@
+  | TkElse        -- ^ @else@
+  | TkElseif      -- ^ @elseif@
+  | TkEnd         -- ^ @end@
+  | TkFalse       -- ^ @false@
+  | TkFor         -- ^ @for@
+  | TkFunction    -- ^ @function@
+  | TkGoto        -- ^ @goto@
+  | TkIf          -- ^ @if@
+  | TkIn          -- ^ @in@
+  | TkLocal       -- ^ @local@
+  | TkNil         -- ^ @nil@
+  | TkNot         -- ^ @not@
+  | TkOr          -- ^ @or@
+  | TkRepeat      -- ^ @repeat@
+  | TkReturn      -- ^ @return@
+  | TkThen        -- ^ @then@
+  | TkTrue        -- ^ @true@
+  | TkUntil       -- ^ @until@
+  | TkWhile       -- ^ @while@
+  | TkPlus        -- ^ @+@
+  | TkDash        -- ^ @\-@
+  | TkMult        -- ^ @\*@
+  | TkFloatDiv    -- ^ @/@
+  | TkModulo      -- ^ @%@
+  | TkExponent    -- ^ @^@
+  | TkLength      -- ^ @#@
+  | TkBitwiseAnd  -- ^ @&@
+  | TkTilde       -- ^ @~@
+  | TkBitwiseOr   -- ^ @|@
+  | TkLShift      -- ^ @<<@
+  | TkRShift      -- ^ @\>\>@
+  | TkFloorDiv    -- ^ @//@
+  | TkEq          -- ^ @==@
+  | TkNeq         -- ^ @~=@
+  | TkLeq         -- ^ @<=@
+  | TkGeq         -- ^ @\>=@
+  | TkLt          -- ^ @<@
+  | TkGt          -- ^ @\>@
+  | TkAssign      -- ^ @=@
+  | TkLParen      -- ^ @(@
+  | TkRParen      -- ^ @)@
+  | TkLBrace      -- ^ @{@
+  | TkRBrace      -- ^ @}@
+  | TkLBracket    -- ^ @[@
+  | TkRBracket    -- ^ @]@
+  | TkLabel       -- ^ @::@
+  | TkSemi        -- ^ @;@
+  | TkColon       -- ^ @:@
+  | TkComma       -- ^ @,@
+  | TkDot         -- ^ @.@
+  | TkConcat      -- ^ @..@
+  | TkVararg      -- ^ @...@
+  | TkQuote       -- ^ @'@
+  | TkDoubleQuote -- ^ @"@
+  | TkIdent String
+  | TkStringLit String
+  | TkIntLit String
+  | TkFloatLit String
+  deriving (Data, Eq, Generic, Show, Typeable)
 
 showToken :: Token -> String
 showToken TkAnd           = "and"
