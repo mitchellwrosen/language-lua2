@@ -308,7 +308,7 @@ instance Pretty (Expression a) where
     pretty (PrefixExp _ e)    = pretty e
     pretty (TableCtor _ t)    = pretty t
     pretty (Binop _ op e1 e2) = pretty e1 <+> pretty op <+> pretty e2
-    pretty (Unop _ op e)      = pretty op <> pretty e
+    pretty (Unop _ op e)      = pretty op <+> pretty e
 
 instance Pretty (PrefixExpression a) where
     pretty (PrefixVar _ v)     = pretty v
