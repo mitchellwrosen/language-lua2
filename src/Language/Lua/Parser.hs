@@ -1,4 +1,5 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE RankNTypes         #-}
 
 module Language.Lua.Parser
     ( -- * Lua parsers
@@ -31,11 +32,12 @@ import Language.Lua.Parser.Internal
 import Language.Lua.Syntax
 import Language.Lua.Token
 
-import           Control.Exception   (Exception, mapException, throw)
-import           Data.Data
-import           Data.List           (intercalate)
-import           Data.Loc
-import           Text.Earley
+import Control.Exception   (Exception, mapException, throw)
+import Data.Data
+import Data.Functor        ((<$>))
+import Data.List           (intercalate)
+import Data.Loc
+import Text.Earley
 
 type LuaGrammar f = forall r. Grammar r (Prod r String (L Token) (f NodeInfo))
 
