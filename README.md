@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/mitchellwrosen/language-lua2.svg?branch=master)](https://travis-ci.org/mitchellwrosen/language-lua2)
+
 Lua 5.3 parser and pretty-printer. Parsed nodes include source location
 and token information to allow all types of types of analysis, including style-checking.
 
