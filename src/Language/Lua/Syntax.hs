@@ -172,8 +172,8 @@ data FunctionBody a
   deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 data ParamList a
-  = ParamList !a !(IdentList a) !Bool -- ^ @(x, y, ...)@
-  | ParamListVararg !a                -- ^ @(...)@
+  = ParamList !a !(IdentList1 a) !Bool -- ^ @(x, y, ...)@
+  | ParamListVararg !a                 -- ^ @(...)@
   deriving (Data, Eq, Functor, Generic, Show, Typeable)
 
 -- | A table constructor.
@@ -340,10 +340,10 @@ instance Pretty (FunctionBody a) where
     <$> text "end"
 
 instance Pretty (ParamList a) where
-  pretty (ParamList _ (IdentList _ is) True) =
-    sepBy (text ", ") (map pretty is) <> comma <+> text "..."
-  pretty (ParamList _ (IdentList _ is) False) =
-    sepBy (text ", ") (map pretty is)
+  pretty (ParamList _ (IdentList1 _ (i:|is)) True) =
+    sepBy (text ", ") (map pretty (i:is)) <> comma <+> text "..."
+  pretty (ParamList _ (IdentList1 _ (i:|is)) False) =
+    sepBy (text ", ") (map pretty (i:is))
   pretty (ParamListVararg _) = text "..."
 
 instance Pretty (TableConstructor a) where

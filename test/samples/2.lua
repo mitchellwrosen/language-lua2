@@ -13,7 +13,8 @@ TODO allow tuples to contain other tuples?
 
 local tuple = {}
 
-local NAN = setmetatable({}, {__tostring = function() return "NAN" end})
+local NAN = setmetatable({a = function() return 5 end})
+
 local NIL = setmetatable({}, {__tostring = function() return "NIL" end})
 
 local allowed_primitive_types = {

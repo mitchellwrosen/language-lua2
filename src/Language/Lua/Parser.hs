@@ -1,5 +1,9 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE RankNTypes         #-}
+{-# LANGUAGE DeriveDataTypeable   #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Language.Lua.Parser
   ( -- * Lua parsers
@@ -41,13 +45,15 @@ import Text.Earley
 
 type LuaGrammar f = forall r. Grammar r (Prod r String (L Token) (f NodeInfo))
 
-data LuaParseException
+data LuaParseException f
   = LuaLexException !Pos
   | LuaParseException !FilePath !(Report String [L Token])
-  | LuaAmbiguousParseException !FilePath !(Report String [L Token])
-  deriving (Eq, Typeable)
+  | LuaAmbiguousParseException !FilePath [f NodeInfo] !(Report String [L Token])
+  deriving Typeable
 
-instance Show LuaParseException where
+deriving instance Eq (f NodeInfo) => Eq (LuaParseException f)
+
+instance Show (f NodeInfo) => Show (LuaParseException f) where
   show e =
     case e of
       LuaLexException pos -> "Unexpected token at " ++ displayPos pos
@@ -63,7 +69,7 @@ instance Show LuaParseException where
             , "    Expected one of: " ++ intercalate ", " xs
             , "    But found: '" ++ showToken tk ++ "'"
             ]
-      LuaAmbiguousParseException filename r ->
+      LuaAmbiguousParseException filename ps r ->
         let s = "Ambiguous parse. See <http://www.lua.org/manual/5.3/manual.html#3.3.1> for a likely explanation.\n"
         in case r of
              Report _ xs [] -> unlines
@@ -71,7 +77,10 @@ instance Show LuaParseException where
                , "    " ++ s
                , "    Expected one of: " ++ intercalate ", " xs
                , "    But found: <EOF>"
-               ]
+               , ""
+               , "    All parses:"
+               , ""
+               ] ++ intercalate "\n\n" (map (("    " ++) . show) ps)
              Report _ xs (L (Loc p _) tk : _) -> unlines
                [ displayPos p ++ ":"
                , "    " ++ s
@@ -79,7 +88,7 @@ instance Show LuaParseException where
                , "    But found: '" ++ showToken tk ++ "'"
                ]
 
-instance Exception LuaParseException
+instance (Show (f NodeInfo), Typeable f) => Exception (LuaParseException f)
 
 -- | Parse a Lua file. May throw 'LuaParseException'.
 --
@@ -123,7 +132,9 @@ parseLua = parseLuaWith luaChunk
 -- >>> (() <$) <$> parseLuaWith luaExpression "" "5+5"
 -- Binop () (Plus ()) (Integer () "5") (Integer () "5")
 parseLuaWith
-  :: LuaGrammar f -- ^ Grammar to parse with.
+  :: forall f.
+     (Show (f NodeInfo), Typeable f)
+  => LuaGrammar f -- ^ Grammar to parse with.
   -> String       -- ^ Source filename (used in locations).
   -> String       -- ^ Source contents.
   -> f NodeInfo
@@ -131,8 +142,8 @@ parseLuaWith g filename contents =
   let tokens = streamToList' (runLexer luaLexer filename contents)
   in case fullParses (parser g) tokens of
        ([x], _) -> x
-       ([],  r) -> throw (LuaParseException filename r)
-       (_,   r) -> throw (LuaAmbiguousParseException filename r)
+       ([],  r) -> throw (LuaParseException filename r :: LuaParseException f)
+       (xs,  r) -> throw (LuaAmbiguousParseException filename xs r)
  where
   -- Wrap a LexicalError in our own LuaParseException.
   streamToList' :: forall tok. TokenStream tok -> [tok]
@@ -143,7 +154,7 @@ parseLuaWith g filename contents =
                 [] -> []
                 (t:ts') -> t : go ts'
 
-    f :: LexicalError -> LuaParseException
+    f :: LexicalError -> LuaParseException f
     f (LexicalError pos) = LuaLexException pos
 
 -- | Grammar for a Lua chunk; i.e. a Lua compilation unit, defined as a list of

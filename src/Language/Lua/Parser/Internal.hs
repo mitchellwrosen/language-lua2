@@ -287,8 +287,6 @@ grammar = mdo
     <|> mkArgsString
       <$> stringLit
 
-  identList <- identListG
-
   functionBody :: Prod r String (L Token) (FunctionBody NodeInfo) <- rule $
     mkFunctionBody
     <$> lparen
@@ -301,7 +299,7 @@ grammar = mdo
         ParamListVararg . nodeInfo
       <$> vararg
     <|> mkParamList
-      <$> identList
+      <$> identList1
       <*> optional ((,)
           <$> comma
           <*> vararg)
@@ -622,7 +620,7 @@ mkArgsString a@(L _ (TkStringLit s)) = ArgsString (nodeInfo a) s
 mkArgsString tk = error $ printf "mkArgsString: %s is not a TkStringLit" (show tk)
 
 mkParamList
-  :: IdentList NodeInfo
+  :: IdentList1 NodeInfo
   -> Maybe (L Token, L Token)
   -> ParamList NodeInfo
 mkParamList a b = ParamList (nodeInfo a <> nodeInfo b) a (isJust b)

@@ -1,22 +1,15 @@
 [![Build Status](https://travis-ci.org/mitchellwrosen/language-lua2.svg?branch=master)](https://travis-ci.org/mitchellwrosen/language-lua2)
 
-Lua 5.3 parser and pretty-printer. Parsed nodes include source location
-and token information to allow all types of types of analysis, including style-checking.
+##### Unmaintained!
 
-Similar to https://hackage.haskell.org/package/language-lua, but:
+This parser works but is extremely slow and memory-intensive. You should
+probably use [language-lua](https://hackage.haskell.org/package/language-lua)
+instead.
 
-- Supports full Lua 5.3 syntax, including bitwise operators
-- Simpler code (I hope) with a more declarative parser
-- AST annotated with token lists for style-checking analysis
+The main impetus behind this project was style-checking lua code, which requires
+token information to stick around after parsing.
 
-##### Building
-
-    stack build
-
-##### Testing
-
-    stack test
-
-##### Documentation
-
-https://hackage.haskell.org/package/language-lua2
+Currently, this parser tags each AST node with the list of tokens used to
+produce it. Instead, the parser should simply tag each AST node with the
+indicies of the first and last token used to produce it, along with a vector
+of tokens.
